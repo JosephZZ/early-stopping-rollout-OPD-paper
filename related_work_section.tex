@@ -36,26 +36,26 @@ all underperform \method{} and most underperform plain full-sequence training.
 Position is the load-bearing axis; scalar token saliencies are not.
 This also resolves a tension with \citet{wang2025beyond8020}, who find that RL gradients concentrated on high-entropy ``forking tokens'' suffice: in on-policy \emph{distillation}, the high-entropy tokens are disproportionately in the uncontaminated early window, so their result is consistent with ours once this early-window concentration of entropy is accounted for.
 
-\paragraph{Training Stability and Sequence-Level Issues.}
-Full-sequence on-policy distillation is known to suffer from instability.
-\citet{holtzman2020curious} identified that likelihood-based training can produce bland, repetitive text---a form of neural text degeneration.
-\citet{shumailov2024collapse} demonstrated that iteratively training generative models on their own outputs leads to model collapse, where distribution tails disappear.
-In on-policy KD specifically, \citet{jang2026veto} proposed Veto, a geometric bridge in logit space that suppresses harmful gradients on low-confidence tokens, directly addressing the instability we also observe.
-Our approach is complementary: rather than modifying the target distribution, we restrict the loss scope to early positions where teacher-student agreement is naturally highest, achieving stability through a simpler mechanism.
+% \paragraph{Training Stability and Sequence-Level Issues.}
+% Full-sequence on-policy distillation is known to suffer from instability.
+% \citet{holtzman2020curious} identified that likelihood-based training can produce bland, repetitive text---a form of neural text degeneration.
+% \citet{shumailov2024collapse} demonstrated that iteratively training generative models on their own outputs leads to model collapse, where distribution tails disappear.
+% In on-policy KD specifically, \citet{jang2026veto} proposed Veto, a geometric bridge in logit space that suppresses harmful gradients on low-confidence tokens, directly addressing the instability we also observe.
+% Our approach is complementary: rather than modifying the target distribution, we restrict the loss scope to early positions where teacher-student agreement is naturally highest, achieving stability through a simpler mechanism.
 
-Several works have studied how sequence length affects distillation quality.
-\citet{chen2025distillingessence} showed that training on only the first 50\% of tokens in supervised reasoning distillation retains $\sim$91\% of full-sequence performance, establishing a computation-quality tradeoff.
-\citet{yan2026dasd} addressed exposure bias and capacity misalignment in long chain-of-thought distillation through temperature-scheduled learning.
-Our work extends the truncation insight to the on-policy setting: we demonstrate that positional loss masking on student-generated sequences achieves equal or better performance than full-sequence loss, while providing the additional benefit of eliminating degenerate repetition patterns that are unique to on-policy training.
+% Several works have studied how sequence length affects distillation quality.
+% \citet{chen2025distillingessence} showed that training on only the first 50\% of tokens in supervised reasoning distillation retains $\sim$91\% of full-sequence performance, establishing a computation-quality tradeoff.
+% \citet{yan2026dasd} addressed exposure bias and capacity misalignment in long chain-of-thought distillation through temperature-scheduled learning.
+% Our work extends the truncation insight to the on-policy setting: we demonstrate that positional loss masking on student-generated sequences achieves equal or better performance than full-sequence loss, while providing the additional benefit of eliminating degenerate repetition patterns that are unique to on-policy training.
 
-\paragraph{Curriculum Learning and Sequence Scheduling.}
-Curriculum learning~\citep{bengio2009curriculum} improves training by gradually increasing task difficulty.
-\citet{bengio2015scheduled} applied this principle to sequence models through scheduled sampling, transitioning from teacher-forced to free-running generation during training.
-In the LLM pretraining setting, \citet{li2022stability} showed that long sequences at training start cause extreme gradient variance, and sequence length warmup stabilizes training while enabling larger batch sizes.
-\citet{pouransari2024dataset} extended this with variable sequence length curriculum for LLM pretraining, achieving up to 3$\times$ faster convergence.
-Our progressive position schedule---linearly increasing the position limit from 1 to 200 over training---applies the curriculum principle to the distillation loss scope rather than to the input sequence length, and represents a novel form of curriculum specific to knowledge distillation.
+% \paragraph{Curriculum Learning and Sequence Scheduling.}
+% Curriculum learning~\citep{bengio2009curriculum} improves training by gradually increasing task difficulty.
+% \citet{bengio2015scheduled} applied this principle to sequence models through scheduled sampling, transitioning from teacher-forced to free-running generation during training.
+% In the LLM pretraining setting, \citet{li2022stability} showed that long sequences at training start cause extreme gradient variance, and sequence length warmup stabilizes training while enabling larger batch sizes.
+% \citet{pouransari2024dataset} extended this with variable sequence length curriculum for LLM pretraining, achieving up to 3$\times$ faster convergence.
+% Our progressive position schedule---linearly increasing the position limit from 1 to 200 over training---applies the curriculum principle to the distillation loss scope rather than to the input sequence length, and represents a novel form of curriculum specific to knowledge distillation.
 
-\paragraph{Reasoning Distillation.}
-Chain-of-thought prompting~\citep{wei2022chainofthought} made intermediate reasoning the unit of transfer for distillation, and the DeepSeek-R1 release~\citep{deepseekr1} established that SFT-distilling a strong reasoner into a smaller model is often competitive with direct RL on the small model.
-Our experiments include three reasoning tasks (MATH-500, HumanEval/MBPP, BFCL) and a 1.5B-math-student $\to$ 8B-teacher sweep; \method{} surpasses the teacher on several of these cells (Qwen math, function-calling), indicating that reasoning-distillation gains beyond the teacher are possible when the mode-seeking reverse-KL loss is restricted to the planning region.
-This is a complementary perspective to the DeepSeek-R1 recipe, which uses fully-sequenced SFT: our analysis explains why the on-policy, early-stopped-rollout regime is both more efficient and more stable for reasoning-style chain-of-thought distillation, and why full-sequence on-policy distillation---which in principle should be the strongest setting---frequently degrades across training on coding and math.
+% \paragraph{Reasoning Distillation.}
+% Chain-of-thought prompting~\citep{wei2022chainofthought} made intermediate reasoning the unit of transfer for distillation, and the DeepSeek-R1 release~\citep{deepseekr1} established that SFT-distilling a strong reasoner into a smaller model is often competitive with direct RL on the small model.
+% Our experiments include three reasoning tasks (MATH-500, HumanEval/MBPP, BFCL) and a 1.5B-math-student $\to$ 8B-teacher sweep; \method{} surpasses the teacher on several of these cells (Qwen math, function-calling), indicating that reasoning-distillation gains beyond the teacher are possible when the mode-seeking reverse-KL loss is restricted to the planning region.
+% This is a complementary perspective to the DeepSeek-R1 recipe, which uses fully-sequenced SFT: our analysis explains why the on-policy, early-stopped-rollout regime is both more efficient and more stable for reasoning-style chain-of-thought distillation, and why full-sequence on-policy distillation---which in principle should be the strongest setting---frequently degrades across training on coding and math.

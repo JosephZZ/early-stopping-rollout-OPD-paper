@@ -307,7 +307,7 @@ In Section \ref{sec:motivation}, we identified the ``Off-policy Teacher Drift'' 
 \begin{minipage}[b]{0.42\textwidth}
     \centering
     \includegraphics[width=\linewidth]{figures/three_curves_by_position.png}
-    \captionof{figure}{\textbf{Early positions carry all three --- student entropy, teacher entropy, and reverse-KL --- simultaneously} (Qwen, MATH-500). Natural hypothesis: \method{} works because those regions carry the most signal (high KL) at the most uncertain points (high entropy). If that were the mechanism, selecting tokens by high-KL or high-entropy alone should recover the gain. Table~\ref{tab:token_select} shows it does not.}
+    \captionof{figure}{Early tokens are high on student entropy, teacher entropy, and KL divergence simultaneously}
     \label{fig:three_curves}
 \end{minipage}
 \hfill
@@ -356,7 +356,13 @@ Moreover, recently \cite{sublinminal} shows student models may be able to learn 
 \subsection{Why Does \Method{} Even Exceed the Teacher?}
 \label{sec:mode_seek}
 
-\Method{} exceeds the teacher on several cells (Qwen math; Qwen and Gemma function calling; Gemma coding, where the teacher is in fact weaker than the student). We offer a hypothesis. Reverse KL $\mathrm{KL}(\pi_s \,\|\, \pi_t)$ is mode-seeking: it penalizes the student for putting mass on tokens the teacher does not support, but not for concentrating mass on a single supported token. When the teacher is multi-modal at the planning positions---one mode being a verbose, wasteful plan and another a concise correct plan---a short early-window loss can force the student to commit to the smaller, correct mode rather than averaging (Figure~\ref{fig:mode_seek}). On function-calling this effect is pronounced: \method-100 lifts Qwen BFCL full\_acc from 54.0\% (teacher) to 61.3\%, and the chained Qwen3-4B$\to$8B configuration raises it to 76.8\% against a 73.0\% teacher. Full-sequence training cannot achieve this because its late-position loss pulls the student toward the average teacher behaviour across all supported modes, undoing the concentration.
+\Method{} exceeds the teacher in most of the main experiments\ref{tab:main_results}. Even the full rollout model slightly exceeds the teacher in function calling experiments, although weaker than our method. This shows that student has the potential exceed the teacher even in normal OPD, and our method amplifies it. Why is so? Isn't teacher supposed to be the upper bound? 
+
+We propose the reason lies in the mechanism of reverse KL $\mathrm{KL}(\pi_s \,\|\, \pi_t)$, which has a mode-seeking behavior: it penalizes the student for putting mass on tokens the teacher does not support, but not for concentrating mass on a single supported token. Therefore, the student has the possibility to land on a submode of the teacher that is actually better. We visualize this mechanism in figure \ref{fig:mode_seek}.
+
+To verify it is the case, we first scan through the behaviors difference of the distilled models. Surprisingly, models trained with our method produces 2x to 3x shorter sequences than not only the teacher and the full rollout versions, and even shorter than itself. Note that the teacher model is a more verbose model than the student. So learning from such teacher generally leads to longer sequences. The full rollout version is indeed the case. It produces sequence even much longer than the teacher. The juxtaposing direction learned from the same teacher caused just by the rollout length shows how important this choice leads to. Without the impact of the late-position tokens, the model preserves its original succint style and learns the teacher's strategy altogether, leading to a more desirable outcome than simply copying the teacher. 
+
+Furthermore, we how student's probability output mode aligns with the teacher quantitatively. We take out the top 10 \% of highest KL tokens after the training that can tell the model's behavior difference most saliently. We check the frequency when the student's top choice agrees with the teacher's top choice, top 2-5 choices, and beyond. We find that, indeed, our method produces a model that is more commited to top 2-5 choices of the teacher rather than the first choice. And the top 1 choice average probability of our method is higher than that of the full rollout, showing our method leads the model to be more confident in its choice. This exactly shows that \method steers the model to commit to a secondary mode in the teacher model.
 
 \begin{figure}[t]
     \centering
@@ -379,11 +385,11 @@ Moreover, recently \cite{sublinminal} shows student models may be able to learn 
 \midrule
 Base student            & $\sim$400     & $\sim$860     & $\sim$1{,}500 & $\sim$990     & $2.2\times$ & 0.71          & 28.6\%           & 59.8\%          & 11.5\% \\
 Teacher (Q3-1.7B)       & $\sim$700     & $\sim$1{,}150 & $\sim$1{,}800 & $\sim$1{,}210 & $2.6\times$ & ---           & ---              & ---             & ---    \\
-Full-seq                & $\sim$1{,}190 & $\sim$1{,}530 & $\sim$1{,}770 & $\sim$1{,}480 & $3.2\times$ & 0.77          & \textbf{45.7\%}  & 44.6\%          & 9.7\%  \\
-\textbf{\Method-100 (ours)} & $\sim$190 & $\sim$380     & $\sim$800     & $\sim$460     & $1.0\times$ & \textbf{0.79} & 41.9\%           & \textbf{47.4\%} & 10.7\% \\
+Full Rollout                & $\sim$1{,}190 & $\sim$1{,}530 & $\sim$1{,}770 & $\sim$1{,}480 & $3.2\times$ & 0.77          & \textbf{45.7\%}  & 44.6\%          & 9.7\%  \\
+\textbf{\Method} & $\sim$190 & $\sim$380     & $\sim$800     & $\sim$460     & $1.0\times$ & \textbf{0.79} & 41.9\%           & \textbf{47.4\%} & 10.7\% \\
 \bottomrule
 \end{tabular}
-\caption{\textbf{Behavioral signature of \method{}.} \emph{Left:} Response length distribution on MATH-500 ($n{=}2{,}000$ rollouts per model; tokens estimated as $\text{chars}/3.5$). \Method-100 is shorter than base, teacher, \emph{and} full-seq across the whole distribution: even its long tail (90th pctile $\sim 800$ tok) is shorter than the base student's typical response (50th pctile $\sim 860$ tok). \textbf{Ratio} = mean length relative to \Method. Full-seq mean is below its median because length is clipped at \texttt{max\_new\_tokens}. \emph{Right:} Top-10\% of token positions ranked by KL$[\pi_s\,\|\,\pi_t]$ on 100 base-student trajectories ($n{=}110{,}894$). ``$=$ tch.\ top-1'', ``$\in$ tch.\ top 2--5'', and ``$\notin$ tch.\ top-5'' are mutually exclusive and sum to $100\%$ (teacher omitted because the comparison is student-vs-teacher). \Method-100 commits hardest (top-1 prob $0.79$) but agrees \emph{less} with the teacher's argmax than full-seq, and picks teacher-supported alternatives more often.}
+\caption{\textbf{Behavioral Modes Analysis.} \emph{Left:} Response length distribution on MATH-500. \Method learns an output style that dramatically shorter than full rollout, teacher, and even its own baseline model. We show the length of the 10 percentile, 50 percentile (media), 90 percentile and the average length. \emph{Right:} How student's output aligns with the teacher's distribution modes. ``Top-1 Prob'' shows the probability of the top 1 token's probability mass, indicating how much the student commits in its first choice. ``=tch. top-1'' means the percentage of times where the student's first choice is same as that of the teacher. ``$\in$ tch.\ top 2--5'' means the percentage of times where the student's first choice is the teachers 2nd to 5th choice. And ``$\notin$ tch.\ top-5'' are the times the student's first choice isn't in the teacher's top 5 list. Our method tends to choose teacher's non-first choice and is more confident in its choice than the full rollout version.}
 \label{tab:behavioral_signature}
 \end{table}
 
