@@ -32,7 +32,6 @@
 \usepackage{subcaption}
 \usepackage{algorithm}
 \usepackage{algorithmic}
-\usepackage{fontawesome5}
 
 \hypersetup{
   colorlinks=true,
@@ -48,7 +47,7 @@
 \newcommand{\KL}{\mathrm{KL}}
 \newcommand{\bboxed}{\texttt{\textbackslash boxed\{\}}}
 \newcommand{\tbd}[1]{\textcolor{red}{[TBD: #1]}}
-\newcommand{\beatsteacher}{\textcolor{orange!90!red}{\faFire*}}
+\newcommand{\beatsteacher}{\textcolor{red!85!black}{$\bigstar$}}
 
 \title{Less is More: Early Stopping Rollout for \\ On-Policy Distillation}
 
@@ -77,7 +76,8 @@
 % ABSTRACT
 % ============================================================================
 \begin{abstract}
-On-policy distillation scores every token of the student's rollout with the teacher. We identify a subtlety that changes the picture: the teacher's score at position $t$ is conditioned on the student's own previously generated tokens, so early in a rollout the teacher judges \emph{how to approach the problem}, whereas later it can only judge \emph{how to continue what the student has already written}. Given a sufficiently long student rollout, the teacher's accuracy collapses toward the student baseline, indicating that late-position supervision is far weaker than early-position supervision. We therefore propose \emph{\methodfull{}} (\method{}): restrict both the rollout and the reverse-KL loss to the first $N$ response tokens. Across tasks, model families, LoRA and full fine-tuning, and a range of teacher scales, \method{} matches or exceeds full-sequence distillation nearly everywhere, sometimes surpasses the teacher, trains far faster with far less memory, and avoids the collapse modes of full-sequence training. The obvious explanation---\method{} as a proxy for high-KL or high-entropy tokens---fails: every scalar-saliency selector we tried underperforms \method{}, and most underperform plain full-sequence. Position is an independent, load-bearing axis---it is where the planning tokens live, and a short reverse-KL loss there is enough to improve the entire response.
+% On-policy distillation scores every token of the student's rollout with the teacher. We identify a subtlety that changes the picture: the teacher's score at position $t$ is conditioned on the student's own previously generated tokens, so early in a rollout the teacher judges \emph{how to approach the problem}, whereas later it can only judge \emph{how to continue what the student has already written}. Given a sufficiently long student rollout, the teacher's accuracy collapses toward the student baseline, indicating that late-position supervision is far weaker than early-position supervision. We therefore propose \emph{\methodfull{}} (\method{}): restrict both the rollout and the reverse-KL loss to the first $N$ response tokens. Across tasks, model families, LoRA and full fine-tuning, and a range of teacher scales, \method{} matches or exceeds full-sequence distillation nearly everywhere, sometimes surpasses the teacher, trains far faster with far less memory, and avoids the collapse modes of full-sequence training. The obvious explanation---\method{} as a proxy for high-KL or high-entropy tokens---fails: every scalar-saliency selector we tried underperforms \method{}, and most underperform plain full-sequence. Position is an independent, load-bearing axis---it is where the planning tokens live, and a short reverse-KL loss there is enough to improve the entire response.
+On-policy distillation has recently emerged as a promising alternative to standard sequence-level imitation, training a student by scoring its own rollouts with a teacher model. However, one important limitation is observed in this paradigm: at each position, the teacher scores the student's next token conditioned on the student's own previous outputs. Early tokens are therefore judged mainly in the context of the original problem and reflect how the student approaches the problem, whereas later tokens are constrained by increasingly student-specific context and provide much weaker supervision. Based on this intuition, we propose \methodfull{} (\method{}), a simple yet effective distillation strategy that restricts both rollout generation and reverse-KL to the first $N$ response tokens. This position-focused objective emphasizes the tokens that encode planning and reasoning, rather than spending supervision budget on late tokens whose informational value rapidly degrades. Empirical experiments have proved that \method{} shows both surpassing performance with high efficiency under various models and training methods. It is also proved that the teacher collapses in sufficiently long rollouts suggesting that late-position supervision contributes little useful learning signal. We further investigate the mechanism behind this effect and show that position is a distinct and crucial dimension of supervision, not merely a proxy for token uncertainty or difficulty.  It establishes position-aware supervision as an important direction for understanding and advancing OPD in future studies.
 \end{abstract}
 
 % ============================================================================
@@ -94,35 +94,28 @@ To probe how severe this drift is, we run a preliminary experiment that measures
 
 Motivated by this, we propose \methodfull (\method): restrict the student rollout to its first $N$ tokens (e.g., 50 or 100) and compute the distillation loss only on this early window. The change is a single line in any on-policy distillation loop. Despite its simplicity, \method consistently outperforms full-rollout OPD across tasks (math, code, function calling), training regimes (LoRA, full fine-tuning), model scales (students 1.5B--7B, teachers 1.7B--14B), and model families (Qwen, Gemma), while reducing wall-clock cost by up to $24\times$ and peak training memory by up to $4\times$. We further observe that full-rollout OPD frequently destabilizes and collapses during training, whereas \method does not collapse in any of our settings. Perhaps most surprisingly, although the student is normally upper-bounded by the teacher's performance, \method-trained students often \emph{exceed} the teacher.
 
-Such a small change yields such large gains probe us to investigate deeper. We have verified that later position tokens suffer from signal quality issues. But we want to further validate whether the effectiveness of earlier tokens is intrinsically caused by better KL and entropy signals, because we also find that early tokens generally have larger KL and entropy. We test selectors that pick tokens by high KL, high entropy or combined regardless of position; all underperform \method, with most underperforming full-rollout. Therefore, although we don't exclude KL and entropy as auxillary factors, we confirm that the position is a an independent factor rather a saliency proxy. The late position tokens have signal quality issues in themselves. Furthermore, we identified two other mechanisms that may be working together: \textbf{(i)} \emph{Strategy learning}: we find content-wise the early tokens tend to encode strategies and plans, while later tokens tend to focus on specific executions. It may be better to learn just the planning part from the teacher and leave the execution to its own way. \textbf{(ii)} \emph{Convergence Cascade}: after training on the early window, KL divergence on the \emph{untrained} late tokens also drops by 30--40\%; the KL divergence does not have to see late positions to repair them.
+Such a small change yields such large gains probe us to investigate deeper. Firstly, we want to further validate whether the effectiveness of earlier tokens is intrinsically caused by better KL and entropy signals, because we also find that early tokens generally have larger KL and entropy. We test selectors that pick tokens by high KL, high entropy or combined regardless of position; all underperform \method, with most underperforming full-rollout. Therefore, although we don't exclude KL and entropy as auxillary factors, we confirm that the position is a an independent factor rather a saliency proxy. Furthermore, we identified an additional important mechanism  \emph{Convergence Cascade}: after training on the early window, KL divergence on the \emph{untrained} late tokens also drops by 30--40\%. Therefore, the KL divergence does not have to see late positions to repair them.
 
-These mechanisms explain why \method can beat full-rollout. They do not explain why \method sometimes even \emph{exceeds} the teacher --- a stronger phenomenon we observe on most of our main experiment Table~\ref{tab:main_results}. We trace this to the mode-seeking nature of reverse-KL: the student commits to a suset of supported teacher modes instead of chasing all of them. Our \method loss helps it steer toward a non-dominant but correct mode rather than the teacher's argmax. Empirically, we find \method-trained students commit harder to their own choices than full-rollout students yet agree \emph{less} with the teacher's argmax, and produce trajectories ${\sim}3\times$ shorter than full-rollout and ${\sim}2\times$ shorter than the base student (\S\ref{sec:mode_seek}). It learns the teacher's strategy but preserves its succinct style, leading to better compount behaviors. This finding showcases a potential path of superceding the teacher model in distillation that worth further investigations.
+Lastly, we investigated into why \method sometimes even \emph{exceeds} the teacher --- a stronger phenomenon we observe on most of our main experiment Table~\ref{tab:main_results}. We trace this to the mode-seeking nature of reverse-KL: the student commits to a subset of supported teacher modes instead of chasing all of them. Our \method loss helps it steer toward a non-dominant but correct mode rather than the teacher's argmax. Empirically, we find \method-trained students commit harder to their own choices than full-rollout students yet agree \emph{less} with the teacher's argmax, and produce trajectories ${\sim}3\times$ shorter than full-rollout and ${\sim}2\times$ shorter than the base student (\S\ref{sec:mode_seek}). It learns the teacher's strategy but preserves its succinct style, leading to better compount behaviors. This finding showcases a potential path of superceding the teacher model in distillation that worth further investigations.
 
 Our contributions are summarized below:
 \begin{enumerate}
     \item \textbf{\methodfull (\method) outperforms full-rollout on-policy distillation.} A one-line change---restricting the rollout length to the first $N$ response tokens---beats full-sequence distillation across tasks, model families, scales, and training regimes, while being dramatically more efficient and far more stable to train. It can even exceed the teacher's own performance (Sections~\ref{sec:method}--\ref{sec:stability}).
-    \item \textbf{A systematic investigation of why it works.} First, through a token-selection ablation, we show that the gain is not ``high KL'' or ``high entropy'' in disguise: position itself is a load-bearing axis. We also identify strategy learning, and convergence cascading to be potential factors. Furthermore, we explain why \method often surpasses the teacher: by exploiting the mode-seeking behavior of reverse-KL training, \method pushes the student toward a better, non-dominant sub-mode (Section~\ref{sec:mechanisms_section}).
+    \item \textbf{A systematic investigation of why it works.} First, through a token-selection ablation, we show that the gain is not ``high KL'' or ``high entropy'' in disguise: position itself is a load-bearing axis. We also identify convergence cascading to be another important mechanism. Furthermore, we explain why \method often surpasses the teacher: by exploiting the mode-seeking behavior of reverse-KL training, \method pushes the student toward a better, non-dominant sub-mode (Section~\ref{sec:mechanisms_section}).
 \end{enumerate}
 
 
 % ============================================================================
 % 2. MOTIVATION
 % ============================================================================
-\begin{figure}[t]
-    \centering
-    \caption{\textbf{The teacher loses accuracy quckly as the student-generated rollout grows in a few hundred of tokens.} MATH-500, avg@4 ($n{=}4$, $t{=}0.7$). Teacher = Qwen3-1.7B; student = Qwen2.5-Math-1.5B. After $\sim$300 student tokens the teacher has effectively been dragged down to student-baseline performance.}
-    \label{fig:motivation}
-    \includegraphics[width=0.7\textwidth]{figures/motivation_prefix_curve.png}
-\end{figure}
-  
 \section{Why Late-Position Supervision Is Unreliable}
 \label{sec:motivation}
 
-In on-policy distillation, the teacher model scores the student's rollout at each position $t$ via $\pi_t(\cdot \mid x, y_{<t}^{\text{student}})$ and averages these scores uniformly across the rollout. The conditioning context $y_{<t}^{\text{student}}$, however, is whatever this particular student happened to write at this particular moment of training. As $t$ grows it drifts away from any distribution the teacher itself was trained on---off-policy to the teacher and, for long enough or atypical enough rollouts, plausibly out-of-distribution.  
+In on-policy distillation, the teacher model scores the student's rollout at each position $t$ via $\pi_t(\cdot \mid x, y_{<t}^{\text{student}})$ and averages these scores uniformly across the rollout. The conditioning context $y_{<t}^{\text{student}}$, however, is whatever this particular student happened to write at this particular moment of training. As $t$ grows it drifts away from any distribution the teacher itself was trained on---off-policy to the teacher and, for long enough or atypical enough rollouts, plausibly out-of-distribution. We term this problem as ``Off-policy Teacher Drift''.  
 
 To verify the intuition, we feed the teacher a $k$-token student-generated rollout on MATH-500 and letting it continue autoregressively, the teacher's avg@4 ($n{=}4$, $t{=}0.7$) falls from its 65.30\% unconditional baseline to 62.70\% at $k{=}100$ and 51.75\% at $k{=}300$---essentially student-baseline (Figure~\ref{fig:motivation}). Late-position teacher scores are not independent assessments of the prompt; it is a guess at how to continue a trajectory the student has already committed to. 
   
-The problem compounds during training because the student's policy is moving. Early on, the student's rollout is far from the teacher; late-position targets are fitted under a strongly off-policy prefix. As training progresses and earlier tokens approach the teacher's distribution, the right late-position behavior changes too---continuations that were sensible above an off-policy prefix are no longer sensible above an on-policy one. But the late-position habits learned earlier do not cleanly erase: gradient descent gives no guarantee of unlearning, and in LoRA's low-rank setting it updates make redirection compete for capacity that may already be spent. Full-rollout training thus chases a moving late-position target while carrying ballast from earlier ones. This insight expectes training stability issues for full-rollout OPD -- a prediction we later verify in \S\ref{sec:stability}
+The problem compounds during training because the student's policy is moving. Early on, the student's rollout is far from the teacher; late-position targets are fitted under a strongly off-policy prefix. As training progresses and earlier tokens approach the teacher's distribution, the right late-position behavior changes too---continuations that were sensible above an off-policy prefix are no longer sensible above an on-policy one. But the late-position habits learned earlier do not cleanly erase: gradient descent gives no guarantee of unlearning, and in LoRA's low-rank setting it updates make redirection compete for capacity that may already be spent. Full-rollout training thus chases a moving late-position target while carrying ballast from earlier ones. We term this problem as ``Stale Late-position Lock-in''. This insight expects a training stability issues for full-rollout OPD -- a prediction we later verify in \S\ref{sec:stability}
 
 
 
@@ -199,7 +192,7 @@ Table~\ref{tab:main_results} presents the main results across tasks and model fa
 \begin{table}[t]
 \begin{minipage}[t]{0.48\textwidth}
 \centering
-\caption{\textbf{FullFT on MATH-500.} Best across training steps. \textbf{Bold}: \method{} beats \textbf{Full Rollout}.}
+\captionof{table}{\textbf{FullFT on MATH-500.} Best across training steps. \textbf{Bold}: \method{} beats \textbf{Full Rollout}.}
 \label{tab:fullft_math}
 \scriptsize
 \setlength{\tabcolsep}{3pt}
@@ -216,11 +209,12 @@ Table~\ref{tab:main_results} presents the main results across tasks and model fa
  & \textbf{\Method{}} & \textbf{26.65} & \textbf{40.40} \\
 \bottomrule
 \end{tabular}
+
 \end{minipage}%
 \hfill
 \begin{minipage}[t]{0.50\textwidth}
 \centering
-\caption{\textbf{Scaling teacher and student (LoRA) on MATH-500.} $^{\downarrow}$: \textbf{Full Rollout} peak before degradation. \textbf{Bold}: \method{} beats \textbf{Full Rollout}.}
+\captionof{table}{\textbf{Scaling teacher and student (LoRA) on MATH-500.} $^{\downarrow}$: \textbf{Full Rollout} peak before degradation. \textbf{Bold}: \method{} beats \textbf{Full Rollout}.}
 \label{tab:scaling_math}
 \scriptsize
 \setlength{\tabcolsep}{3pt}
@@ -253,10 +247,20 @@ Table~\ref{tab:main_results} presents the main results across tasks and model fa
 \paragraph{\boldmath\methodfull is not sensitive to the choice of $N$.} A natural question naturally occurs - how to choose where to stop? Is it sensitive? We conducted a set of sweeping experiments in Figure~\ref{fig:n_sweep} sweeps $N$ on MATH-500 and reveals a robust region: it reaches just as good performance starting from $N{=}50$ and remains stable to $N{=}200$. The method is not sensitive to the exact choice of $N$ within a certain region.
 
 \begin{figure}[t]
+\centering
+\begin{minipage}[b]{0.48\textwidth}
     \centering
-    \caption{\textbf{Rollout Length $N$ Sweep on MATH-500.} LoRA, Qwen2.5-Math-1.5B $\rightarrow$ Qwen3-1.7B; best avg@4 across training steps. Full rollout and the undistilled baseline are shown as horizontal references. Performance saturates for $N \in [50, 200]$ and all beat full-seq.}
+    \captionof{figure}{\textbf{The teacher loses accuracy quckly as the student-generated rollout grows in a few hundred of tokens.} MATH-500, avg@4 ($n{=}4$, $t{=}0.7$). Teacher = Qwen3-1.7B; student = Qwen2.5-Math-1.5B. After $\sim$300 student tokens the teacher has effectively been dragged down to student-baseline performance.}
+    \label{fig:motivation}
+    \includegraphics[width=\linewidth]{figures/motivation_prefix_curve.png}
+\end{minipage}
+\hfill
+\begin{minipage}[b]{0.48\textwidth}
+    \centering
+    \captionof{figure}{\textbf{Rollout Length $N$ Sweep on MATH-500.} LoRA, Qwen2.5-Math-1.5B $\rightarrow$ Qwen3-1.7B; best avg@4 across training steps. Full rollout and the undistilled baseline are shown as horizontal references. Performance saturates for $N \in [50, 200]$ and all beat full-seq.}
     \label{fig:n_sweep}
-    \includegraphics[width=0.65\linewidth]{figures/fig_n_sweep.png}
+    \includegraphics[width=\linewidth]{figures/fig_n_sweep.png}
+\end{minipage}
 \end{figure}
 
 
@@ -290,26 +294,35 @@ Table~\ref{tab:timing} shows that \method{} achieves a 24$\times$ wall-clock spe
 % ============================================================================
 % 6. MECHANISMS (Part 3 of the deck)
 % ============================================================================
-\section{Why Does \Method{} Work? }
+\section{Additional Reasons Why Does \Method{} Work? }
 \label{sec:mechanisms_section}
 
-The result that a one-line change matches or exceeds full-sequence distillation --- at a fraction of the compute, with stability everywhere the full-sequence baseline degrades --- is surprising enough that it demands a deeper mechanism. We structure this section around three questions: \textbf{(\S\ref{sec:token_selection})} Is the early-position effect simply a proxy for high-KL or high-entropy tokens? \textbf{(\S\ref{sec:mechanisms})} If not, what additional structural reasons make the early window privileged? \textbf{(\S\ref{sec:mode_seek})} Why does \method{} sometimes \emph{exceed} the teacher?
+The surprising effectiveness of \methodfull{} probes us to investigate deeper beyond what we have identified Section \ref{sec:motivation}. We structure this section around three questions: \textbf{(\S\ref{sec:token_selection})} Is the early-position effect induced by by high-KL or high-entropy tokens? \textbf{(\S\ref{sec:mechanisms})} If not, what additional structural reasons make the early window privileged? \textbf{(\S\ref{sec:mode_seek})} Why does \method{} sometimes \emph{exceed} the teacher?
 
-\subsection{Is the Effectiveness of the Early Position Caused by KL and Entropy?}
+\subsection{What Does The Effectiveness of \Method{} Stem From?}
 \label{sec:token_selection}
 
-Figure~\ref{fig:three_curves} shows that early positions are simultaneously high-KL and high-entropy, so a natural alternative to positional selection is \emph{information-theoretic} selection: pick the $k$ tokens with the highest KL divergence or highest student/teacher entropy, regardless of position. We tested every such selector (Table~\ref{tab:token_select}): all underperform \method{}, and most underperform full-sequence. For each strategy in Table~\ref{tab:token_select} we keep the full 400-token on-policy rollout, compute the selector, and apply the reverse-KL loss only to the selected tokens.
+In Section \ref{sec:motivation}, we identified the ``Off-policy Teacher Drift'' and ``Stale Late-position Lock-in'' problem that can cause the late-position tokens to provide degrading signals. During the experiment analysis, we find that, as shown in Figure~\ref{fig:three_curves}, early positions simultaneously have high KL divergence between student and teacher model, and high token entropy from both student and teacher models. This finding probes us to wonder if the effectiveness is intrinsically induced by the KL and entropy. To control these factors, we conduct a series of ablation experiments: pick the same amount (100) of tokens based on the highest KL divergence, highest student/teacher entropy or with them in combination with \method, regardless of position (Table~\ref{tab:token_select}). If the effectiveness is indeed induced by the KL or entropy, then they should reproduce the same or better results. 
 
 \begin{figure}[t]
 \centering
-\begin{minipage}[b]{0.42\textwidth}
+\begin{minipage}[b]{0.50\textwidth}
     \centering
-    \captionof{figure}{\textbf{Early positions carry all three --- student entropy, teacher entropy, and reverse-KL --- simultaneously} (Qwen, MATH-500). Natural hypothesis: \method{} works because those regions carry the most signal (high KL) at the most uncertain points (high entropy). If that were the mechanism, selecting tokens by high-KL or high-entropy alone should recover the gain. Table~\ref{tab:token_select} shows it does not.}
-    \label{fig:three_curves}
-    \includegraphics[width=\linewidth]{figures/three_curves_by_position.png}
+    \captionof{figure}{\textbf{Case study: early tokens encode strategy; later tokens merely execute.} A representative MATH-500 trajectory. The first 100 tokens establish the geometric setup, name the unknown, and identify the key relationship (altitude bisects the leg)---these are the choices that determine whether the rollout will succeed. The last 100 tokens carry out an algebraic computation that any solver can finish once the strategy is fixed. \Method{} supervises the first window; the second follows for free.}
+    \label{fig:case_study}
+    \fbox{\begin{minipage}{0.93\linewidth}
+    \scriptsize
+    \textbf{Problem.} In an isosceles right triangle, the altitude to the hypotenuse has length $4\sqrt{2}$. What is the area?
+
+    \smallskip
+    \textbf{First 100 tokens (strategy).} \emph{``Let's start by understanding the problem. In an isosceles right triangle, the two legs are equal, and the hypotenuse is $\sqrt{2}$ times the leg. If we denote each leg by $a$, then hypotenuse $= a\sqrt{2}$. The altitude to the hypotenuse is half the leg, because the altitude bisects the\dots''}
+
+    \smallskip
+    \textbf{Last 100 tokens (execution).} \emph{``\dots altitude from the right-angle vertex to the hypotenuse. This altitude has length $h = \tfrac{a \cdot a}{a\sqrt{2}} = \tfrac{a^{2}}{a\sqrt{2}} = \tfrac{a}{\sqrt{2}} = \tfrac{a\sqrt{2}}{2}$. Setting this equal to $4\sqrt{2}$: $\tfrac{a\sqrt{2}}{2} = 4\sqrt{2}$, so $a\sqrt{2} = 8\sqrt{2}$, giving $a = 8$. The area is $\tfrac{1}{2}\times 8\times 8 = \boxed{32}$.''}
+    \end{minipage}}
 \end{minipage}
 \hfill
-\begin{minipage}[b]{0.55\textwidth}
+\begin{minipage}[b]{0.46\textwidth}
     \centering
     \captionof{table}{\textbf{Token selection strategies on MATH-500.} Qwen2.5-Math-1.5B $\to$ Qwen3-1.7B, LoRA, $n_{\text{samples}}{=}1$, best avg@4 across training steps. All selectors operate on full-length rollouts; \method{} is the only one that additionally truncates the rollout. Baseline (no distillation) 50.95\%; full-seq 62.35\%. $H_s$: student entropy; $H_t$: teacher entropy; $\mathrm{RKL}$: reverse KL.}
     \label{tab:token_select}
@@ -322,7 +335,6 @@ Figure~\ref{fig:three_curves} shows that early positions are simultaneously high
     Full-seq (all tokens) & --- & 62.35 \\
     \midrule
     Top-$\mathrm{RKL}$ & 100 & 53.35 \\
-    Top-$\mathrm{RKL}$ & 200 & 56.15 \\
     Top-$H_t$ (teacher entropy) & 100 & 63.30 \\
     Top-$H_s$ (student entropy) & 100 & 62.70 \\
     Top-$H_s$ & 200 & 53.20 \\
@@ -334,46 +346,44 @@ Figure~\ref{fig:three_curves} shows that early positions are simultaneously high
 \end{minipage}
 \end{figure}
 
-Two findings fall out of Table~\ref{tab:token_select}. \textbf{(i)} Top-$\mathrm{RKL}{=}100$, the selector that captures the most raw KL signal, is the \emph{worst} (53.35\%) --- worse than no distillation. Increasing $k$ to 200 only partly recovers. \textbf{(ii)} Every KL/entropy/combined selector underperforms full-sequence (62.35\%), which in turn underperforms \method{} (65.85\%). These selectors all concentrate on the contaminated late region where the teacher is scoring its own continuation of the student's previously generated tokens; the benefit of the early region is therefore \emph{structural}, not reducible to any scalar per-token statistic.
+ To our surprise, all underperform \method{}, and most of them also much underperform the full rollout results. Teacher or student entropy based selection can match the full sequence by them alone, but their combination falls short significantly. What's also interesting is that KL divergence measure, the direct calculation of the loss magnitude, barely works. It only improves the baseline (50.95\%) for about 3 percent. And more surprisingly, we find that the largest 100 tokens of KL occupies around 93\% of the entire trajectory loss. This shows that the tokens that has larger signals are not necessarily the ones that have effective signals. 
+ 
+ Therefore, althought we still don't exclude KL and entropy as potential mediator factor, we exclude them to be the sole factors that causes early tokens to be special. Position, therefore, should be considered an independent token selection dimension for the future.
 
-\paragraph{Takeaway.} \textbf{\Method{} is not mainly caused by KL or entropy.} Position is an independent, load-bearing axis --- not ``high-KL in disguise'' and not ``high-entropy in disguise''. Whatever makes the early window privileged is structural; we identify two such reasons next.
-
-\subsection{Strategy Learning and Convergence Cascade}
+\subsection{The Convergence Cascade Effect of \Method{}}
 \label{sec:mechanisms}
 
-Section~\ref{sec:token_selection} rules out scalar per-token saliency. Beyond the late-position contamination already established in \S\ref{sec:motivation}, we identify two further structural mechanisms that jointly explain why training on the early window is so effective.
+We find an additional important mechanism that assists in \method's effectiveness. Even we only trained the first $N$ tokens with \method,  training, per-position KL divergence beyond $[0, N]$ region still drops  by $30$--$40\%$ (Figure~\ref{fig:cascade}). This shows that the student can pick up the teacher's ``global mindset'' even with just the beginning tokens. One reason that we suspect is that the beginning tokens often consist of problem framing and strategic planning content. Therefore once the student picks up how to frame problems and plan the strategy, the later content naturally follows.
 
-\paragraph{Strategy learning --- the early window is where planning tokens live.} The early-position KL spike concentrates on planning / structural tokens: the highest-KL tokens in our corpus are ``To'' (KL 6.90, $n{=}8806$), ``First'' (9.98), ``Let'', ``The'', ``Therefore'' (7.95), ``Thus'', along with format-opening tokens \texttt{\textbackslash[}, \texttt{\textbackslash(}, and code-fence \verb|```| (see Table~\ref{tab:app_high_kl_tokens}). These tokens \emph{select} the reasoning trajectory --- different openings commit the student to algebra-with-variables, factoring, or numeric-estimation paths on the same problem. The teacher's conditional distribution at these tokens is genuinely multi-modal (entropy 1.07), so reverse-KL has room to move the student to a single teacher-supported mode. After the plan is committed, the remainder is execution: the teacher is near-deterministic (entropy 0.14) and there is little signal to extract. \emph{Teach the plan; the execution follows} (Figure~\ref{fig:case_study}) --- and no scalar saliency can recover the early-window region because what matters is where in the rollout a token lives, not how surprising it is locally. Moreover, recently \cite{sublinminal} shows student models may be able to learn the teacher's deep internal preference even with random numbers generated by the teacher, called ``subliminal learning''. Therefore, the early tokens may suffice to inject the subliminal mindset to the student.
+Moreover, recently \cite{sublinminal} shows student models may be able to learn the teacher's deep internal preference even with random numbers generated by the teacher, called ``subliminal learning''. Therefore, the early tokens may suffice to inject the subliminal mindset to the student. 
 
 \begin{figure}[t]
 \centering
-\caption{\textbf{Case study: early tokens encode strategy; later tokens merely execute.} A representative MATH-500 trajectory. The first 100 tokens establish the geometric setup, name the unknown, and identify the key relationship (altitude bisects the leg)---these are the choices that determine whether the rollout will succeed. The last 100 tokens carry out an algebraic computation that any solver can finish once the strategy is fixed. \Method{} supervises the first window; the second follows for free.}
-\label{fig:case_study}
-\fbox{\begin{minipage}{0.93\linewidth}
-\small
-\textbf{Problem.} In an isosceles right triangle, the altitude to the hypotenuse has length $4\sqrt{2}$. What is the area?
-
-\smallskip
-\textbf{First 100 tokens (strategy).} \emph{``Let's start by understanding the problem. In an isosceles right triangle, the two legs are equal, and the hypotenuse is $\sqrt{2}$ times the leg. If we denote each leg by $a$, then hypotenuse $= a\sqrt{2}$. The altitude to the hypotenuse is half the leg, because the altitude bisects the\dots''}
-
-\smallskip
-\textbf{Last 100 tokens (execution).} \emph{``\dots altitude from the right-angle vertex to the hypotenuse. This altitude has length $h = \tfrac{a \cdot a}{a\sqrt{2}} = \tfrac{a^{2}}{a\sqrt{2}} = \tfrac{a}{\sqrt{2}} = \tfrac{a\sqrt{2}}{2}$. Setting this equal to $4\sqrt{2}$: $\tfrac{a\sqrt{2}}{2} = 4\sqrt{2}$, so $a\sqrt{2} = 8\sqrt{2}$, giving $a = 8$. The area is $\tfrac{1}{2}\times 8\times 8 = \boxed{32}$.''}
-\end{minipage}}
-\end{figure}
-
-\paragraph{Convergence cascade --- training the early window lowers KL everywhere.} A natural worry is that \method{} helps only inside the trained window. The opposite holds. After \method-200 training, per-position KL between distilled student and teacher drops by $50$--$60\%$ inside $[0, N]$ \emph{and} by $30$--$40\%$ outside it (Figure~\ref{fig:cascade}). Comparing distilled vs.\ base responses on the same prompts, late tokens --- which receive zero direct supervision --- change as much as early tokens in surface content (Jaccard to baseline $=0.251$ for both halves). Autoregressive generation explains the cascade: once the student has committed to the right plan in the first $N$ tokens, the remaining rollout is a lower-KL, more on-policy completion for the teacher, so no gradient is needed there. The loss does not have to \emph{see} late positions to align them.
-
-\begin{figure}[t]
+\begin{minipage}[b]{0.48\textwidth}
     \centering
-    \caption{\textbf{The convergence cascade.} Per-position KL between distilled student and teacher, before vs.\ after \method-$200$ training. Yellow band: positions $[0, 200]$ that actually receive training loss. Blue band: the KL gap closed by training. Positions $200+$ --- which see no direct training signal --- drop to the same KL as the trained region, confirming that alignment on the early window cascades through the autoregressive rollout.}
+    \captionof{figure}{Early tokens are high on student entropy, teacher entropy, and KL divergence simultaneously.}
+    \label{fig:three_curves}
+    \includegraphics[width=\linewidth]{figures/three_curves_by_position.png}
+\end{minipage}
+\hfill
+\begin{minipage}[b]{0.48\textwidth}
+    \centering
+    \captionof{figure}{\textbf{The convergence cascade.} Per-position KL between distilled student and teacher, before vs.\ after \method training. Yellow band: positions $[0, 100]$ that actually receive training loss. Blue band: the KL gap closed by training. Positions $100+$ --- which see no direct training signal --- drop to the same KL as the trained region, confirming that alignment on the early window cascades through the autoregressive rollout.}
     \label{fig:cascade}
-    \includegraphics[width=0.85\linewidth]{figures/kl_cascade_curves.png}
+    \includegraphics[width=\linewidth]{figures/kl_cascade_curves.png}
+\end{minipage}
 \end{figure}
 
-\subsection{Why Does \Method{} Sometimes Exceed the Teacher?}
+\subsection{Why Does \Method{} Even Exceed the Teacher?}
 \label{sec:mode_seek}
 
-\Method{} exceeds the teacher on several cells (Qwen math; Qwen and Gemma function calling; Gemma coding, where the teacher is in fact weaker than the student). We offer a hypothesis. Reverse KL $\mathrm{KL}(\pi_s \,\|\, \pi_t)$ is mode-seeking: it penalizes the student for putting mass on tokens the teacher does not support, but not for concentrating mass on a single supported token. When the teacher is multi-modal at the planning positions---one mode being a verbose, wasteful plan and another a concise correct plan---a short early-window loss can force the student to commit to the smaller, correct mode rather than averaging (Figure~\ref{fig:mode_seek}). On function-calling this effect is pronounced: \method-100 lifts Qwen BFCL full\_acc from 54.0\% (teacher) to 61.3\%, and the chained Qwen3-4B$\to$8B configuration raises it to 76.8\% against a 73.0\% teacher. Full-sequence training cannot achieve this because its late-position loss pulls the student toward the average teacher behaviour across all supported modes, undoing the concentration.
+\Method{} exceeds the teacher in most of the main experiments\ref{tab:main_results}. Even the full rollout model slightly exceeds the teacher in function calling experiments, although weaker than our method. This shows that student has the potential exceed the teacher even in normal OPD, and our method amplifies it. Why is so? Isn't teacher supposed to be the upper bound? 
+
+We propose the reason lies in the mechanism of reverse KL $\mathrm{KL}(\pi_s \,\|\, \pi_t)$, which has a mode-seeking behavior: it penalizes the student for putting mass on tokens the teacher does not support, but not for concentrating mass on a single supported token. Therefore, the student has the possibility to land on a submode of the teacher that is actually better. We visualize this mechanism in figure \ref{fig:mode_seek}.
+
+To verify it is the case, we first scan through the behaviors difference of the distilled models. Surprisingly, models trained with our method produces 2x to 3x shorter sequences than not only the teacher and the full rollout versions, and even shorter than itself. Note that the teacher model is a more verbose model than the student. So learning from such teacher generally leads to longer sequences. The full rollout version is indeed the case. It produces sequence even much longer than the teacher. The juxtaposing direction learned from the same teacher caused just by the rollout length shows how important this choice leads to. Without the impact of the late-position tokens, the model preserves its original succint style and learns the teacher's strategy altogether, leading to a more desirable outcome than simply copying the teacher. 
+
+Furthermore, we how student's probability output mode aligns with the teacher quantitatively. We take out the top 10 \% of highest KL tokens after the training that can tell the model's behavior difference most saliently. We check the frequency when the student's top choice agrees with the teacher's top choice, top 2-5 choices, and beyond. We find that, indeed, our method produces a model that is more commited to top 2-5 choices of the teacher rather than the first choice. And the top 1 choice average probability of our method is higher than that of the full rollout, showing our method leads the model to be more confident in its choice. This exactly shows that \method steers the model to commit to a secondary mode in the teacher model.
 
 \begin{figure}[t]
     \centering
@@ -386,7 +396,7 @@ Section~\ref{sec:token_selection} rules out scalar per-token saliency. Beyond th
 
 \begin{table}[t]
 \centering
-\caption{\textbf{Behavioral signature of \method{}.} \emph{Left:} Response length distribution on MATH-500 ($n{=}2{,}000$ rollouts per model; tokens estimated as $\text{chars}/3.5$). \Method-100 is shorter than base, teacher, \emph{and} full-seq across the whole distribution: even its long tail (90th pctile $\sim 800$ tok) is shorter than the base student's typical response (50th pctile $\sim 860$ tok). \textbf{Ratio} = mean length relative to \Method. Full-seq mean is below its median because length is clipped at \texttt{max\_new\_tokens}. \emph{Right:} Top-10\% of token positions ranked by KL$[\pi_s\,\|\,\pi_t]$ on 100 base-student trajectories ($n{=}110{,}894$). ``$=$ tch.\ top-1'', ``$\in$ tch.\ top 2--5'', and ``$\notin$ tch.\ top-5'' are mutually exclusive and sum to $100\%$ (teacher omitted because the comparison is student-vs-teacher). \Method-100 commits hardest (top-1 prob $0.79$) but agrees \emph{less} with the teacher's argmax than full-seq, and picks teacher-supported alternatives more often.}
+\caption{\textbf{Behavioral Modes Analysis.} \emph{Left:} Response length distribution on MATH-500. \Method learns an output style that dramatically shorter than full rollout, teacher, and even its own baseline model. We show the length of the 10 percentile, 50 percentile (media), 90 percentile and the average length. \emph{Right:} How student's output aligns with the teacher's distribution modes. ``Top-1 Prob'' shows the probability of the top 1 token's probability mass, indicating how much the student commits in its first choice. ``=tch. top-1'' means the percentage of times where the student's first choice is same as that of the teacher. ``$\in$ tch.\ top 2--5'' means the percentage of times where the student's first choice is the teachers 2nd to 5th choice. And ``$\notin$ tch.\ top-5'' are the times the student's first choice isn't in the teacher's top 5 list. Our method tends to choose teacher's non-first choice and is more confident in its choice than the full rollout version.}
 \label{tab:behavioral_signature}
 \footnotesize
 \setlength{\tabcolsep}{2.5pt}
@@ -398,8 +408,8 @@ Section~\ref{sec:token_selection} rules out scalar per-token saliency. Beyond th
 \midrule
 Base student            & $\sim$400     & $\sim$860     & $\sim$1{,}500 & $\sim$990     & $2.2\times$ & 0.71          & 28.6\%           & 59.8\%          & 11.5\% \\
 Teacher (Q3-1.7B)       & $\sim$700     & $\sim$1{,}150 & $\sim$1{,}800 & $\sim$1{,}210 & $2.6\times$ & ---           & ---              & ---             & ---    \\
-Full-seq                & $\sim$1{,}190 & $\sim$1{,}530 & $\sim$1{,}770 & $\sim$1{,}480 & $3.2\times$ & 0.77          & \textbf{45.7\%}  & 44.6\%          & 9.7\%  \\
-\textbf{\Method-100 (ours)} & $\sim$190 & $\sim$380     & $\sim$800     & $\sim$460     & $1.0\times$ & \textbf{0.79} & 41.9\%           & \textbf{47.4\%} & 10.7\% \\
+Full Rollout                & $\sim$1{,}190 & $\sim$1{,}530 & $\sim$1{,}770 & $\sim$1{,}480 & $3.2\times$ & 0.77          & \textbf{45.7\%}  & 44.6\%          & 9.7\%  \\
+\textbf{\Method} & $\sim$190 & $\sim$380     & $\sim$800     & $\sim$460     & $1.0\times$ & \textbf{0.79} & 41.9\%           & \textbf{47.4\%} & 10.7\% \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -452,9 +462,9 @@ version. See \url{https://neurips.cc/Conferences/2026/PaperInformation/FundingDi
 \section{Training Efficiency}
 \label{app:timing}
 
-\begin{table}[t]
+\begin{table}[!htbp]
 \centering
-\caption{\textbf{Training efficiency, detailed breakdown.} Per-step wall-clock time on a single A6000 (48GB). Student: Qwen2.5-Math-1.5B, LoRA, bs=16. $^\dagger$ Frequent OOMs; 48GB insufficient for 8B teacher + vLLM + student.}
+\caption{\textbf{Training efficiency, detailed breakdown.} Per-step wall-clock time on a single A6000 (48GB). Student: Qwen2.5-Math-1.5B, LoRA, bs=16.}
 \label{tab:timing_detail}
 \small
 \begin{tabular}{llcccc}
@@ -470,6 +480,7 @@ version. See \url{https://neurips.cc/Conferences/2026/PaperInformation/FundingDi
 \multirow{2}{*}{Q3-8B} & Full-seq & 96--230 & 7--11 & 1--6 & ${\sim}$170$^\dagger$ \\
  & Ours ($N{=}100$) & ${\sim}$5 & ${\sim}$1 & ${\sim}$2 & ${\sim}$8 \\
 \bottomrule
+\multicolumn{6}{l}{\footnotesize $^\dagger$ Frequent OOMs; 48GB insufficient for 8B teacher + vLLM + student.}
 \end{tabular}
 \end{table}
 
@@ -477,7 +488,7 @@ version. See \url{https://neurips.cc/Conferences/2026/PaperInformation/FundingDi
 \section{Additional Student-Teacher Pairs}
 \label{app:additional_pairs}
 
-\begin{table}[t]
+\begin{table}[!htbp]
 \centering
 \caption{\textbf{Additional student-teacher pairs.} All use ESR-100, LoRA, 3,200 problems.}
 \label{tab:additional_pairs}
@@ -504,7 +515,7 @@ Qwen3-4B & Qwen3-8B & 77.05\% & 76.80\% & 71.34\% \\
 
 Table~\ref{tab:app_math_main} presents per-step results for the primary math experiments (LoRA, $n{=}1$, 3,200 problems).
 
-\begin{table}[t]
+\begin{table}[!htbp]
 \centering
 \caption{\textbf{MATH-500 per-step results.} LoRA, $n{=}1$, $\text{bs}{=}16$, 3,200 problems. Baseline: 50.95\% avg@4.}
 \label{tab:app_math_main}
@@ -535,9 +546,9 @@ Table~\ref{tab:app_math_main} presents per-step results for the primary math exp
 
 \subsection{Math Results: Earlier Series ($n{=}16$, 200 problems)}
 
-\begin{table}[t]
+\begin{table}[!htbp]
 \centering
-\caption{\textbf{Complete MATH-500 results, LoRA, $n{=}16$, $\text{bs}{=}16$.} Best per configuration in \textbf{bold}. $^\dagger$ Last-boxed extraction; degrades due to repetition.}
+\caption{\textbf{Complete MATH-500 results, LoRA, $n{=}16$, $\text{bs}{=}16$.} Best per configuration in \textbf{bold}.}
 \label{tab:app_math_n16}
 \footnotesize
 \begin{tabular}{lcccc}
@@ -569,13 +580,14 @@ ESR-200 & 79.6 & \textbf{80.2} & 79.4 & 79.2 \\
 Progressive & 77.2 & 77.8 & 78.2 & \textbf{78.8} \\
 Full-seq & \textbf{80.0} & 72.2 & 77.0 & 74.2 \\
 \bottomrule
+\multicolumn{5}{l}{\footnotesize $^\dagger$ Last-boxed extraction; degrades due to repetition.}
 \end{tabular}
 \end{table}
 
 
 \subsection{Coding Results}
 
-\begin{table}[t]
+\begin{table}[!htbp]
 \centering
 \caption{\textbf{Complete coding results, LoRA.} HumanEval (HE) and MBPP pass@1.}
 \label{tab:app_coding_lora}
@@ -602,7 +614,7 @@ Full-seq & \textbf{80.0} & 72.2 & 77.0 & 74.2 \\
 
 \subsection{Function Calling Results}
 
-\begin{table}[t]
+\begin{table}[!htbp]
 \centering
 \caption{\textbf{Function calling results (BFCL), LoRA.} Name accuracy / Full accuracy / Parse rate. Best full\_acc in \textbf{bold}.}
 \label{tab:app_funcall}
@@ -626,7 +638,7 @@ Full-seq & 100 & 81.00\% & 58.20\% & 86.70\% \\
 
 \subsection{Scaling Experiment Results}
 
-\begin{table}[t]
+\begin{table}[!htbp]
 \centering
 \caption{\textbf{Scaling results.} All use ESR-100, LoRA, 3,200 problems. Best across training steps. Baseline performance shown for reference.}
 \label{tab:app_scaling}
@@ -656,12 +668,11 @@ Q3-4B $\rightarrow$ Q3-8B & 77.05\% & 76.80\% & 71.34\% & 56.35\% \\
 
 Table~\ref{tab:app_fullseq_collapse} summarises every full-rollout cell (across pairs, tasks, and regimes) for which we have a per-step trajectory on disk and observe degradation across training. For each cell we report the \emph{peak} score (best checkpoint across training) and the \emph{lowest} score (worst checkpoint after the peak), together with the step indices at which they occur. Bold $\Delta$ values indicate cells where Full Rollout drops below the student baseline. The Qwen-math \mbox{$n{=}16$} row (boxed-repetition collapse) is documented in greater detail in Table~\ref{tab:app_boxed} below.
 
-\begin{table}[t]
+\begin{table}[!htbp]
 \centering
-\caption{\textbf{Full-rollout collapses across training (peak $\rightarrow$ lowest).} Each row is a single Full Rollout experiment; we report the highest and lowest checkpoint scores across all saved steps. ``$\Delta$'' is lowest $-$ peak. Cells with $^{\dagger}$ end the run \emph{below the student baseline} (Qwen-Math-1.5B MATH-500: 50.95\%; Gemma-2-2B HumanEval: 23.78\%). Trajectories are taken from the per-step eval logs on the training cluster (\texttt{docs/main\_results.md}, \texttt{docs/scaling\_results.md}). \method{} on the same cells (not shown here) stays within $\pm$1pp of its peak across training; see Tables~\ref{tab:app_math_main} and~\ref{tab:app_coding_lora}.}
+\caption{\textbf{Full-rollout collapses across training (peak $\rightarrow$ lowest).} Each row is a single Full Rollout experiment; we report the highest and lowest checkpoint scores across all saved steps. ``$\Delta$'' is lowest $-$ peak. Cells with $^{\dagger}$ end the run \emph{below the student baseline}. Trajectories are taken from the per-step eval logs on the training cluster (\texttt{docs/main\_results.md}, \texttt{docs/scaling\_results.md}). \method{} on the same cells (not shown here) stays within $\pm$1pp of its peak across training; see Tables~\ref{tab:app_math_main} and~\ref{tab:app_coding_lora}.}
 \label{tab:app_fullseq_collapse}
 \footnotesize
-\setlength{\tabcolsep}{4pt}
 \begin{tabular}{llllccc}
 \toprule
 \textbf{Pair} & \textbf{Regime} & \textbf{Task} & \textbf{Metric} & \textbf{Peak (step)} & \textbf{Lowest (step)} & \textbf{$\Delta$} \\
@@ -676,6 +687,7 @@ Qwen-1.5B $\rightarrow$ Q3-1.7B & FullFT & HumanEval           & pass@1  & 36.6 
 Qwen-1.5B $\rightarrow$ Q3-1.7B & FullFT & HumanEval+          & pass@1  & 31.7 (s150)  & 26.2 (s250)              & $-5.5$  \\
 Gemma-2-2B $\rightarrow$ Gemma-3-4B & LoRA & HumanEval         & pass@1  & 22.0 (s50)   & 11.6 (s150)$^{\dagger}$  & $\mathbf{-10.4}$ \\
 \bottomrule
+\multicolumn{7}{l}{\footnotesize $^{\dagger}$ Lowest score is below the student baseline (Qwen-Math-1.5B MATH-500: 50.95\%; Gemma-2-2B HumanEval: 23.78\%).}
 \end{tabular}
 \end{table}
 
@@ -698,7 +710,7 @@ Gemma-2-2B $\rightarrow$ Gemma-3-4B & LoRA & HumanEval         & pass@1  & 22.0 
 65.60 (s50) $\rightarrow$ 46.30 $\rightarrow$ 49.70 $\rightarrow$ 43.80 (s200). Boxed-repetition collapse; statistics in Table~\ref{tab:app_boxed}.
 \end{itemize}
 
-\begin{table}[t]
+\begin{table}[!htbp]
 \centering
 \caption{\textbf{Boxed repetition progression} in full-sequence LoRA distillation on MATH-500 ($n{=}16$, $\text{bs}{=}16$). Companion to the corresponding row of Table~\ref{tab:app_fullseq_collapse}.}
 \label{tab:app_boxed}
@@ -737,7 +749,7 @@ We classify each token into six categories based on string matching:
     \item \textbf{continuation}: All others.
 \end{enumerate}
 
-\begin{table}[t]
+\begin{table}[!htbp]
 \centering
 \caption{\textbf{Mean KL by token category and position range.}}
 \label{tab:app_kl_by_category}
@@ -756,7 +768,7 @@ continuation & 1.94 & 1.12 & 1.19 & 0.89 & 0.70 & 0.48 \\
 \end{tabular}
 \end{table}
 
-\begin{table}[t]
+\begin{table}[!htbp]
 \centering
 \caption{\textbf{Top 20 highest-KL tokens} (minimum 50 occurrences across 10,000 trajectories).}
 \label{tab:app_high_kl_tokens}
