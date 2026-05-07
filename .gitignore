@@ -1,0 +1,30 @@
+# LaTeX build artifacts
+*.aux
+*.log
+*.out
+*.bbl
+*.blg
+*.toc
+*.synctex.gz
+*.fdb_latexmk
+*.fls
+
+# Editor / OS
+.DS_Store
+*.swp
+.vscode/
+.idea/
+
+# Backups
+*.bak
+*.bak_*
+
+# Python / venv
+.venv/
+__pycache__/
+*.pyc
+
+# Claude / Prism
+.claudeprism/
+.prism/
+.claude/
