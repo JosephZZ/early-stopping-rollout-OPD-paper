@@ -190,10 +190,11 @@ Table~\ref{tab:main_results} presents the main results across tasks and model fa
 \paragraph{\boldmath\method scales across model sizes.} The advantage persists as both teacher and student grow. Table~\ref{tab:scaling_math} reports the results scaling both the teacher and the student. With the same student (Qwen2.5-Math-1.5B), we tried Qwen3-4B and 8B as the teacher. With Qwen3-4B, \textbf{Full Rollout} peaks at ($67.45$) and then \emph{collapses} to $55.05$ (Appendix ~\ref{app:fullseq_degradation}), while \method{} stays stable and climbs to $68.95$. Against the 8B teacher, \method{} still edges \textbf{Full Rollout} ($67.85$ vs $66.75$). The pattern persists at larger scale along with student model too: with a Qwen2.5-Math-7B student and Qwen3-14B teacher, \textbf{Full Rollout} again peaks at step~50 ($68.85$) and drifts to $62.40$, while \method{} holds stable across all checkpoints.
 
 \begin{table}[t]
+\caption{\textbf{FullFT and LoRA scaling on MATH-500.} \textbf{(Left)} FullFT for Qwen and Gemma student/teacher pairs. \textbf{(Right)} LoRA scaling across teacher and student sizes; $^{\downarrow}$ marks the \textbf{Full Rollout} peak before degradation. Both: best across training steps; \textbf{bold}: \method{} beats \textbf{Full Rollout}.}
+\label{tab:fullft_math}\label{tab:scaling_math}
+\centering
 \begin{minipage}[t]{0.48\textwidth}
 \centering
-\captionof{table}{\textbf{FullFT on MATH-500.} Best across training steps. \textbf{Bold}: \method{} beats \textbf{Full Rollout}.}
-\label{tab:fullft_math}
 \scriptsize
 \setlength{\tabcolsep}{3pt}
 \begin{tabular}{@{}l l c c@{}}
@@ -214,8 +215,6 @@ Table~\ref{tab:main_results} presents the main results across tasks and model fa
 \hfill
 \begin{minipage}[t]{0.50\textwidth}
 \centering
-\captionof{table}{\textbf{Scaling teacher and student (LoRA) on MATH-500.} $^{\downarrow}$: \textbf{Full Rollout} peak before degradation. \textbf{Bold}: \method{} beats \textbf{Full Rollout}.}
-\label{tab:scaling_math}
 \scriptsize
 \setlength{\tabcolsep}{3pt}
 \begin{tabular}{@{}l l c c@{}}
@@ -248,17 +247,15 @@ Table~\ref{tab:main_results} presents the main results across tasks and model fa
 
 \begin{figure}[t]
 \centering
+\caption{\textbf{(Left) Off-policy teacher drift.} The teacher loses accuracy quickly as the student-generated rollout grows over a few hundred tokens. MATH-500, avg@4 ($n{=}4$, $t{=}0.7$). Teacher = Qwen3-1.7B; student = Qwen2.5-Math-1.5B. After $\sim$300 student tokens the teacher has effectively been dragged down to student-baseline performance. \textbf{(Right) Rollout length $N$ sweep on MATH-500.} LoRA, Qwen2.5-Math-1.5B $\rightarrow$ Qwen3-1.7B; best avg@4 across training steps. Full rollout and the undistilled baseline are shown as horizontal references. Performance saturates for $N \in [50, 200]$ and all beat full-seq.}
+\label{fig:motivation}\label{fig:n_sweep}
 \begin{minipage}[b]{0.48\textwidth}
     \centering
-    \captionof{figure}{\textbf{The teacher loses accuracy quckly as the student-generated rollout grows in a few hundred of tokens.} MATH-500, avg@4 ($n{=}4$, $t{=}0.7$). Teacher = Qwen3-1.7B; student = Qwen2.5-Math-1.5B. After $\sim$300 student tokens the teacher has effectively been dragged down to student-baseline performance.}
-    \label{fig:motivation}
     \includegraphics[width=\linewidth]{figures/motivation_prefix_curve.png}
 \end{minipage}
 \hfill
 \begin{minipage}[b]{0.48\textwidth}
     \centering
-    \captionof{figure}{\textbf{Rollout Length $N$ Sweep on MATH-500.} LoRA, Qwen2.5-Math-1.5B $\rightarrow$ Qwen3-1.7B; best avg@4 across training steps. Full rollout and the undistilled baseline are shown as horizontal references. Performance saturates for $N \in [50, 200]$ and all beat full-seq.}
-    \label{fig:n_sweep}
     \includegraphics[width=\linewidth]{figures/fig_n_sweep.png}
 \end{minipage}
 \end{figure}
@@ -302,14 +299,14 @@ The surprising effectiveness of \methodfull{} probes us to investigate deeper be
 \subsection{What Does The Effectiveness of \Method{} Stem From?}
 \label{sec:token_selection}
 
-In Section \ref{sec:motivation}, we identified the ``Off-policy Teacher Drift'' and ``Stale Late-position Lock-in'' problem that can cause the late-position tokens to provide degrading signals. During the experiment analysis, we find that, as shown in Figure~\ref{fig:three_curves}, early positions simultaneously have high KL divergence between student and teacher model, and high token entropy from both student and teacher models. This finding probes us to wonder if the effectiveness is intrinsically induced by the KL and entropy. To control these factors, we conduct a series of ablation experiments: pick the same amount (100) of tokens based on the highest KL divergence, highest student/teacher entropy or with them in combination with \method, regardless of position (Table~\ref{tab:token_select}). If the effectiveness is indeed induced by the KL or entropy, then they should reproduce the same or better results. 
+In Section \ref{sec:motivation}, we identified the ``Off-policy Teacher Drift'' and ``Stale Late-position Lock-in'' problem that can cause the late-position tokens to provide degrading signals. During the experiment analysis, we find that, as shown in Figure~\ref{fig:three_curves}, early positions simultaneously have high KL divergence between student and teacher model, and high token entropy from both student and teacher models. This finding probes us to wonder if the effectiveness is intrinsically induced by the KL and entropy. To control these factors, we conduct a series of ablation experiments: pick the same amount (100) of tokens based on the highest KL divergence, highest student/teacher entropy or with them in combination with \method, regardless of position (Figure~\ref{tab:token_select}). If the effectiveness is indeed induced by the KL or entropy, then they should reproduce the same or better results. 
 
 \begin{figure}[t]
 \centering
+\caption{\textbf{(Left) Case study: early tokens encode strategy; later tokens mostly execute.} A representative MATH-500 trajectory. The first 100 tokens establish the geometric setup, name the unknown, and identify the key relationship (altitude bisects the leg)---these are the choices that determine whether the rollout will succeed. The last 100 tokens carry out an algebraic computation that any solver can finish once the strategy is fixed. \Method{} supervises the first window; the second follows for free. \textbf{(Right) Token selection strategies on MATH-500.} Qwen2.5-Math-1.5B $\to$ Qwen3-1.7B, LoRA, $n_{\text{samples}}{=}1$, best avg@4 across training steps. All selectors operate on full-length rollouts; \method{} is the only one that additionally truncates the rollout. Baseline (no distillation) 50.95\%; full-seq 62.35\%. $H_s$: student entropy; $H_t$: teacher entropy; $\mathrm{RKL}$: reverse KL.}
+\label{fig:case_study}\label{tab:token_select}
 \begin{minipage}[b]{0.50\textwidth}
     \centering
-    \captionof{figure}{\textbf{Case study: early tokens encode strategy; later tokens merely execute.} A representative MATH-500 trajectory. The first 100 tokens establish the geometric setup, name the unknown, and identify the key relationship (altitude bisects the leg)---these are the choices that determine whether the rollout will succeed. The last 100 tokens carry out an algebraic computation that any solver can finish once the strategy is fixed. \Method{} supervises the first window; the second follows for free.}
-    \label{fig:case_study}
     \fbox{\begin{minipage}{0.93\linewidth}
     \scriptsize
     \textbf{Problem.} In an isosceles right triangle, the altitude to the hypotenuse has length $4\sqrt{2}$. What is the area?
@@ -324,8 +321,6 @@ In Section \ref{sec:motivation}, we identified the ``Off-policy Teacher Drift'' 
 \hfill
 \begin{minipage}[b]{0.46\textwidth}
     \centering
-    \captionof{table}{\textbf{Token selection strategies on MATH-500.} Qwen2.5-Math-1.5B $\to$ Qwen3-1.7B, LoRA, $n_{\text{samples}}{=}1$, best avg@4 across training steps. All selectors operate on full-length rollouts; \method{} is the only one that additionally truncates the rollout. Baseline (no distillation) 50.95\%; full-seq 62.35\%. $H_s$: student entropy; $H_t$: teacher entropy; $\mathrm{RKL}$: reverse KL.}
-    \label{tab:token_select}
     \small
     \begin{tabular}{lcc}
     \toprule
@@ -359,17 +354,15 @@ Moreover, recently \cite{sublinminal} shows student models may be able to learn 
 
 \begin{figure}[t]
 \centering
+\caption{\textbf{(Left)} Early tokens are high on student entropy, teacher entropy, and KL divergence simultaneously. \textbf{(Right) The convergence cascade.} Per-position KL between distilled student and teacher, before vs.\ after \method training. Yellow band: positions $[0, 100]$ that actually receive training loss. Blue band: the KL gap closed by training. Positions $100+$---which see no direct training signal---drop to the same KL as the trained region, confirming that alignment on the early window cascades through the autoregressive rollout.}
+\label{fig:three_curves}\label{fig:cascade}
 \begin{minipage}[b]{0.48\textwidth}
     \centering
-    \captionof{figure}{Early tokens are high on student entropy, teacher entropy, and KL divergence simultaneously.}
-    \label{fig:three_curves}
     \includegraphics[width=\linewidth]{figures/three_curves_by_position.png}
 \end{minipage}
 \hfill
 \begin{minipage}[b]{0.48\textwidth}
     \centering
-    \captionof{figure}{\textbf{The convergence cascade.} Per-position KL between distilled student and teacher, before vs.\ after \method training. Yellow band: positions $[0, 100]$ that actually receive training loss. Blue band: the KL gap closed by training. Positions $100+$ --- which see no direct training signal --- drop to the same KL as the trained region, confirming that alignment on the early window cascades through the autoregressive rollout.}
-    \label{fig:cascade}
     \includegraphics[width=\linewidth]{figures/kl_cascade_curves.png}
 \end{minipage}
 \end{figure}
