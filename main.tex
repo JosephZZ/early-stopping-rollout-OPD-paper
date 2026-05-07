@@ -49,7 +49,7 @@
 \newcommand{\tbd}[1]{\textcolor{red}{[TBD: #1]}}
 \newcommand{\beatsteacher}{\textcolor{red!85!black}{$\bigstar$}}
 
-\title{Less is More: Early Stopping Rollout for On-Policy Distillation}
+\title{Less is More: Early Stopping Rollout for \\ On-Policy Distillation}
 
 % NeurIPS 2026 author block.
 % At submission time the default (anonymous) option hides the author block
@@ -76,7 +76,7 @@
 % ABSTRACT
 % ============================================================================
 \begin{abstract}
-On-policy knowledge distillation scores every token of the student's rollout with the teacher. We identify a subtlety that changes the picture: the teacher's score at position $t$ is conditioned on the student's own previously generated tokens, so early in a rollout the teacher judges \emph{how to approach the problem}, whereas later it can only judge \emph{how to continue what the student has already written}. Given a sufficiently long student rollout, the teacher's accuracy collapses toward the student baseline, indicating that late-position supervision is far weaker than early-position supervision. We therefore propose \emph{\methodfull{}} (\method{}): restrict both the rollout and the reverse-KL loss to the first $N$ response tokens. Across tasks, model families, LoRA and full fine-tuning, and a range of teacher scales, \method{} matches or exceeds full-sequence distillation nearly everywhere, sometimes surpasses the teacher, trains far faster with far less memory, and avoids the collapse modes of full-sequence training. The obvious explanation---\method{} as a proxy for high-KL or high-entropy tokens---fails: every scalar-saliency selector we tried underperforms \method{}, and most underperform plain full-sequence. Position is an independent, load-bearing axis---it is where the planning tokens live, and a short reverse-KL loss there is enough to improve the entire response.
+On-policy distillation scores every token of the student's rollout with the teacher. We identify a subtlety that changes the picture: the teacher's score at position $t$ is conditioned on the student's own previously generated tokens, so early in a rollout the teacher judges \emph{how to approach the problem}, whereas later it can only judge \emph{how to continue what the student has already written}. Given a sufficiently long student rollout, the teacher's accuracy collapses toward the student baseline, indicating that late-position supervision is far weaker than early-position supervision. We therefore propose \emph{\methodfull{}} (\method{}): restrict both the rollout and the reverse-KL loss to the first $N$ response tokens. Across tasks, model families, LoRA and full fine-tuning, and a range of teacher scales, \method{} matches or exceeds full-sequence distillation nearly everywhere, sometimes surpasses the teacher, trains far faster with far less memory, and avoids the collapse modes of full-sequence training. The obvious explanation---\method{} as a proxy for high-KL or high-entropy tokens---fails: every scalar-saliency selector we tried underperforms \method{}, and most underperform plain full-sequence. Position is an independent, load-bearing axis---it is where the planning tokens live, and a short reverse-KL loss there is enough to improve the entire response.
 \end{abstract}
 
 % ============================================================================
@@ -129,7 +129,7 @@ The problem compounds during training because the student's policy is moving. Ea
 % ============================================================================
 % 4. METHOD
 % ============================================================================
-\section{Method: \methodfull{}}
+\section{Our Method: \methodfull{} (ESR) On Policy Distillation}
 \label{sec:method}
 
 \subsection{Formulation}
@@ -150,7 +150,7 @@ If the student emits EOS before position $N$, the rollout terminates naturally. 
 % ============================================================================
 % 4. MAIN RESULTS
 % ============================================================================
-\section{Main Results: \Method{} Dominates Full-Sequence}
+\section{Analysis on the Advancement of \Method{}}
 \label{sec:experiments}
 \subsection{Setup}
 
@@ -163,7 +163,7 @@ If the student emits EOS before position $N$, the rollout terminates naturally. 
 \subsection{Results Across Families, Tasks, Regimes, and Scales}
 \label{sec:main_results_sub}
 
-Table~\ref{tab:main_results} presents the main results across tasks and model families. Table ~\ref{} scales, and training regimes. We report the best performance achieved across all training steps for each configuration. But notice that full rollout distillation frequently collapse to much lower performance as it trains. We denote the sessions that collapses with a down arrows.
+Table~\ref{tab:main_results} presents the main results across tasks and model families. Table ~\ref{fullft_math} presents ablation results with full finetuning. Table ~\ref{scaling_math} shows model size scaling results. We report the best performance achieved across all training steps for each configuration. But notice that full rollout distillation frequently collapse to much lower performance as it trains. We denote the sessions that collapses with a down arrows.
 
 \begin{table}[t]
 \centering
@@ -178,22 +178,22 @@ Table~\ref{tab:main_results} presents the main results across tasks and model fa
 \midrule
 \multirow{4}{*}{Qwen2.5-Math 1.5B $\to$ Qwen3 1.7B} & Student baseline & 50.95 & 72.80 & 31.10 & 26.20 & 2.70 \\
  & Teacher reference & 65.30 & 77.00 & 39.60 & 36.00 & 54.00 \\
- & \textbf{Full Rollout} & 62.35$^{\downarrow}$ & 74.60$^{\downarrow}$ & 40.20$^{\downarrow}$ & 35.40$^{\downarrow}$ & 58.20 \\
+ & \textbf{Full Rollout} & 62.35$^{\downarrow}$ & 74.60$^{\downarrow}$ & 40.20$^{\downarrow}$ & 35.40$^{\downarrow}$ & 58.20\beatsteacher \\
  & \textbf{\Method{}} & \textbf{65.85}\,\beatsteacher & \textbf{79.80}\,\beatsteacher & \textbf{42.10}\,\beatsteacher & \textbf{36.00} & \textbf{61.30}\,\beatsteacher \\
 \midrule
 \multirow{4}{*}{Gemma-2 2B $\to$ Gemma-3 4B} & Student baseline & 13.45 & 28.20 & 23.78 & 20.10 & 73.17 \\
  & Teacher reference & 66.60 & 74.80 & 20.70 & 20.10 & 72.83 \\
- & \textbf{Full Rollout} & 22.95 & 31.40 & 22.00$^{\downarrow}$ & 17.70$^{\downarrow}$ & 76.83 \\
+ & \textbf{Full Rollout} & 22.95 & 31.40 & 22.00$^{\downarrow}$ & 17.70$^{\downarrow}$ & 76.83\beatsteacher \\
  & \textbf{\Method{}} & \textbf{27.20} & \textbf{39.40} & \textbf{28.70}\,\beatsteacher & \textbf{24.40}\,\beatsteacher & \textbf{79.00}\,\beatsteacher \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\paragraph{\boldmath\methodfull beats full rollout across model families and tasks, and frequently surpasses teacher performance.} Across the cells of Table~\ref{tab:main_results}, \method{} beats full rollout on essentially every cell, and in six cells \method{} \emph{surpasses the teacher} outright (Qwen math avg@4, pass@4; Qwen HumanEval and HumanEval+; Qwen BFCL full\_acc; Gemma coding on all four columns; Gemma BFCL full\_acc). The Gemma coding story is the sharpest: full rollout drives HumanEval pass@1 to $22.00$, \emph{below} the $23.78$ student baseline and worse than the $20.70$ teacher, while \method{} recovers $31.10$. Qwen-math full rollout is marked $^{\downarrow}$ because its best number ($62.35$ avg@4) is a non-stable best step: under $n{=}16$ it collapses via boxed-repetition to $46.3\%$ by step~100 (Appendix~\ref{app:fullseq_degradation}).
+\paragraph{\boldmath\method beats full rollout across model families and tasks, and frequently surpasses teacher performance.} Across the cells of Table~\ref{tab:main_results}, \method{} beats full rollout on every cell, and in six cells \method{} \emph{surpasses the teacher} outright (Qwen math avg@4, pass@4; Qwen HumanEval and HumanEval+; Qwen BFCL full\_acc; Gemma coding on all four columns; Gemma BFCL full\_acc). The Gemma coding results have the biggest gap: full rollout drives HumanEval pass@1 to $22.00$, \emph{below} the $23.78$ student baseline and worse than the $20.70$ teacher, while \method{} recovers $31.10$. Qwen-math full rollout is marked $^{\downarrow}$ because its best number ($62.35$ avg@4) is a non-stable best step: under $n{=}16$ it collapses to $46.3\%$ by step~100 (Appendix~\ref{app:fullseq_degradation}).
 
-\paragraph{\boldmath\methodfull matches or beats full rollout across full fine-tuning and LoRA settings.} The \method{} story is not a LoRA artifact. Table~\ref{tab:fullft_math} reports FullFT on MATH-500 for both Qwen and Gemma. On Qwen the gap narrows (\textbf{Full Rollout} $58.20$ vs \method{} $56.20$ avg@4; both well below the LoRA-\method{} best of $65.85$). On Gemma \method{} still dominates: \method{} beats \textbf{Full Rollout} by $+12.75$pp avg@4 and $+15.40$pp pass@4. \Method{} is the safer choice in both parameter regimes.
+\paragraph{\boldmath\method matches or beats full rollout across full fine-tuning and LoRA settings.} Table~\ref{tab:fullft_math} reports FullFT on MATH-500 for both Qwen and Gemma. On Qwen \textbf{Full Rollout} $58.20$ is slightly better than ours \method{} $56.20$ avg@4, but the gap is close. For Gemma \method{} still dominates \textbf{Full Rollout} by $+12.75$pp avg@4 and $+15.40$pp pass@4. \Method{} is therefore the safer choice in both parameter regimes.
 
-\paragraph{\boldmath\methodfull beats full rollout across model sizes.} The advantage persists as both teacher and student grow. Table~\ref{tab:scaling_math} reports three scaling regimes. With the Qwen3-4B teacher, \textbf{Full Rollout} peaks at step~50 ($67.45$) and then \emph{collapses} via boxed-repetition to $55.05$ by step~200 --- a $-12.4$pp drop across training --- while \method{} stays stable and climbs to $68.95$. Against the 8B teacher, \method{} still edges \textbf{Full Rollout} ($67.85$ vs $66.75$); \textbf{Full Rollout} was only run at step~50, so no trajectory is available. The pattern persists at much larger scale: with a Qwen2.5-Math-7B student and Qwen3-14B teacher, \textbf{Full Rollout} again peaks at step~50 ($68.85$) and drifts to $62.40$ by step~200, while \method{} holds across all checkpoints.
+\paragraph{\boldmath\method works across model sizes.} The advantage persists as both teacher and student grow. Table~\ref{tab:scaling_math} reports the results scaling both the teacher and the student. With the same student (Qwen2.5-Math-1.5B), we tried Qwen3-4B and 8B as the teacher. With Qwen3-4B, \textbf{Full Rollout} peaks at ($67.45$) and then \emph{collapses} to $55.05$ (~\ref{app:full_results}, while \method{} stays stable and climbs to $68.95$. Against the 8B teacher, \method{} still edges \textbf{Full Rollout} ($67.85$ vs $66.75$). The pattern persists at larger scale along with student model too: with a Qwen2.5-Math-7B student and Qwen3-14B teacher, \textbf{Full Rollout} again peaks at step~50 ($68.85$) and drifts to $62.40$, while \method{} holds stable across all checkpoints.
 
 \begin{table}[t]
 \begin{minipage}[t]{0.48\textwidth}
@@ -246,7 +246,7 @@ Table~\ref{tab:main_results} presents the main results across tasks and model fa
 \end{table}
 
 
-\subsection{Method Stability}
+\subsection{Stability}
 \label{sec:stability}
 
 \paragraph{\boldmath\methodfull is more robust than full rollout in training.} Across our (pair $\times$ task $\times$ regime) matrix, full-rollout distillation degrades with training in seven cells; \method{} degrades nowhere. Appendix Table~\ref{tab:app_fullseq_collapse} reports each collapsing cell as a (peak $\rightarrow$ lowest) pair with the corresponding step indices. The headline failures are: Qwen-LoRA coding falls from $40.2$ at s50 to $26.8$ by s350 ($\Delta = -13.4$pp); Qwen-LoRA math under $n_{\text{samples}}{=}16$ collapses via boxed-repetition from $65.60$ at s50 to $43.80$ by s200 ($\Delta = -21.80$pp, ending below the $50.95\%$ student baseline); Qwen-LoRA math with the Qwen3-4B teacher peaks at $67.45$ at s50 and drifts to $54.45$ by s100 ($\Delta = -13.00$pp); and Gemma-LoRA coding peaks at $22.0$ at s50 and falls to $11.6$ ($\Delta = -10.4$pp), more than $12$pp below the student baseline. Three of seven full-rollout collapses end below the student baseline. \Method{} on the same cells stays within $\pm 1$pp of its peak across training (Tables~\ref{tab:app_math_main},~\ref{tab:app_coding_lora}).
