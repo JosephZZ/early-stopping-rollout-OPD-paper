@@ -160,7 +160,7 @@ If the student emits EOS before position $N$, the rollout terminates naturally. 
 
 \textbf{Evaluation.} MATH-500~\citep{hendrycks2021measuring, lightman2023verify} with $n{=}4$ samples at temperature 0.7 (reporting avg@4), HumanEval/HumanEval+ ~\citep{chen2021evaluating, austin2021program, liu2024evalplus} at temperature 0.0 (reporting pass@1), BFCL~\citep{yan2024bfcl} with 600 problems reporting full accuracy: correct function name and arguments.
 
-\subsection{Results Across Families, Tasks, Regimes, and Scales}
+\subsection{Overall performance}
 \label{sec:main_results_sub}
 
 Table~\ref{tab:main_results} presents the main results across tasks and model families. Table ~\ref{fullft_math} presents ablation results with full finetuning. Table ~\ref{scaling_math} shows model size scaling results. We report the best performance achieved across all training steps for each configuration. But notice that full rollout distillation frequently collapse to much lower performance as it trains. We denote the sessions that collapses with a down arrows.
@@ -193,7 +193,7 @@ Table~\ref{tab:main_results} presents the main results across tasks and model fa
 
 \paragraph{\boldmath\method matches or beats full rollout across full fine-tuning and LoRA settings.} Table~\ref{tab:fullft_math} reports FullFT on MATH-500 for both Qwen and Gemma. On Qwen \textbf{Full Rollout} $58.20$ is slightly better than ours \method{} $56.20$ avg@4, but the gap is close. For Gemma \method{} still dominates \textbf{Full Rollout} by $+12.75$pp avg@4 and $+15.40$pp pass@4. \Method{} is therefore the safer choice in both parameter regimes.
 
-\paragraph{\boldmath\method works across model sizes.} The advantage persists as both teacher and student grow. Table~\ref{tab:scaling_math} reports the results scaling both the teacher and the student. With the same student (Qwen2.5-Math-1.5B), we tried Qwen3-4B and 8B as the teacher. With Qwen3-4B, \textbf{Full Rollout} peaks at ($67.45$) and then \emph{collapses} to $55.05$ (~\ref{app:full_results}, while \method{} stays stable and climbs to $68.95$. Against the 8B teacher, \method{} still edges \textbf{Full Rollout} ($67.85$ vs $66.75$). The pattern persists at larger scale along with student model too: with a Qwen2.5-Math-7B student and Qwen3-14B teacher, \textbf{Full Rollout} again peaks at step~50 ($68.85$) and drifts to $62.40$, while \method{} holds stable across all checkpoints.
+\paragraph{\boldmath\method scales across model sizes.} The advantage persists as both teacher and student grow. Table~\ref{tab:scaling_math} reports the results scaling both the teacher and the student. With the same student (Qwen2.5-Math-1.5B), we tried Qwen3-4B and 8B as the teacher. With Qwen3-4B, \textbf{Full Rollout} peaks at ($67.45$) and then \emph{collapses} to $55.05$ (Appendix ~\ref{app:fullseq_degradation}), while \method{} stays stable and climbs to $68.95$. Against the 8B teacher, \method{} still edges \textbf{Full Rollout} ($67.85$ vs $66.75$). The pattern persists at larger scale along with student model too: with a Qwen2.5-Math-7B student and Qwen3-14B teacher, \textbf{Full Rollout} again peaks at step~50 ($68.85$) and drifts to $62.40$, while \method{} holds stable across all checkpoints.
 
 \begin{table}[t]
 \begin{minipage}[t]{0.48\textwidth}
@@ -246,22 +246,22 @@ Table~\ref{tab:main_results} presents the main results across tasks and model fa
 \end{table}
 
 
-\subsection{Stability}
+\subsection{Stability of \Method{}}
 \label{sec:stability}
 
-\paragraph{\boldmath\methodfull is more robust than full rollout in training.} Across our (pair $\times$ task $\times$ regime) matrix, full-rollout distillation degrades with training in seven cells; \method{} degrades nowhere. Appendix Table~\ref{tab:app_fullseq_collapse} reports each collapsing cell as a (peak $\rightarrow$ lowest) pair with the corresponding step indices. The headline failures are: Qwen-LoRA coding falls from $40.2$ at s50 to $26.8$ by s350 ($\Delta = -13.4$pp); Qwen-LoRA math under $n_{\text{samples}}{=}16$ collapses via boxed-repetition from $65.60$ at s50 to $43.80$ by s200 ($\Delta = -21.80$pp, ending below the $50.95\%$ student baseline); Qwen-LoRA math with the Qwen3-4B teacher peaks at $67.45$ at s50 and drifts to $54.45$ by s100 ($\Delta = -13.00$pp); and Gemma-LoRA coding peaks at $22.0$ at s50 and falls to $11.6$ ($\Delta = -10.4$pp), more than $12$pp below the student baseline. Three of seven full-rollout collapses end below the student baseline. \Method{} on the same cells stays within $\pm 1$pp of its peak across training (Tables~\ref{tab:app_math_main},~\ref{tab:app_coding_lora}).
+\paragraph{\boldmath\method  is more robust than full rollout in training.} Across our (pair $\times$ task $\times$ regime) matrix, full-rollout distillation degrades with training very frequently; \method{} degrades nowhere. Appendix Table~\ref{tab:app_fullseq_collapse} reports each collapsing cell as a (peak $\rightarrow$ lowest) pair with the corresponding step indices. For example, Qwen-LoRA coding falls from $40.2$ to $26.8$; Qwen-LoRA math collapses from $65.60$ at s50 to $43.80$  ($\Delta = -21.80$pp, ending below the $50.95\%$ student baseline); Gemma-LoRA collapse from $22.0$ to $11.6$ ($\Delta = -10.4$pp). Three of seven full-rollout collapses end below the student baseline. \Method{} generally hold a fluctuation within $\pm 3$pp of its peak across training (Tables~\ref{tab:app_math_main},~\ref{tab:app_coding_lora}).
 
-\paragraph{\boldmath\methodfull is not sensitive to the choice of $N$.} Figure~\ref{fig:n_sweep} sweeps $N$ on MATH-500 and reveals a robust sweet spot: all rollout cutoffs from $N{=}50$ upward converge to $\sim$66\% avg@4, outperforming full-sequence distillation ($62.35\%$) by $3$--$4$pp. The method is not sensitive to the exact choice of $N$ within this plateau, so no per-task tuning is required.
+\paragraph{\boldmath\methodfull is not sensitive to the choice of $N$.} A natural question naturally occurs - how to choose where to stop? Is it sensitive? We conducted a set of sweeping experiments in Figure~\ref{fig:n_sweep} sweeps $N$ on MATH-500 and reveals a robust region: it reaches just as good performance starting from $N{=}50$ and remains stable to $N{=}200$. The method is not sensitive to the exact choice of $N$ within a certain region.
 
 \begin{figure}[t]
     \centering
     \includegraphics[width=0.65\linewidth]{figures/fig_n_sweep.png}
-    \caption{\textbf{Rollout Length $N$ Sweep on MATH-500.} LoRA, Qwen2.5-Math-1.5B $\rightarrow$ Qwen3-1.7B, $n{=}1$, $3{,}200$ problems; best avg@4 across training steps. Full-seq and the undistilled baseline are shown as horizontal references. Performance saturates for $N \in [50, 200]$ and all points in this range beat full-seq.}
+    \caption{\textbf{Rollout Length $N$ Sweep on MATH-500.} LoRA, Qwen2.5-Math-1.5B $\rightarrow$ Qwen3-1.7B; best avg@4 across training steps. Full rollout and the undistilled baseline are shown as horizontal references. Performance saturates for $N \in [50, 200]$ and all beat full-seq.}
     \label{fig:n_sweep}
 \end{figure}
 
 
-\subsection{Efficiency}
+\subsection{Efficiency of \Method{}}
 \label{sec:efficiency}
 
 \begin{table}[t]
@@ -282,11 +282,11 @@ Student training    & 2\,s & 7\,s   & 3.5$\times$  & 9.6\,GB & 39.5\,GB & 4.1$\t
 \textbf{Total (200 steps)}   & \textbf{27\,min} & \textbf{10.8\,hr} & \textbf{24$\times$} & & & \\
 \bottomrule
 \end{tabular}
-\caption{\textbf{Training efficiency.} Single A6000 (48\,GB), bs${=}16$, $n{=}1$, teacher Qwen3-1.7B. Per-phase wall time and peak GPU memory share the same phases. Phases run sequentially; the memory ``Total'' columns span both rows because they describe the co-resident footprint, i.e., the sum of per-phase peaks if teacher and student stay resident simultaneously instead of being swapped in/out.}
+\caption{\textbf{Training efficiency.} Single A6000 (48\,GB), bs${=}16$, student teacher Qwen3-1.7B. We report the average running time and GPU memory usage across student model generation, training and teacher scoring phases. Note that the real time usage can be larger if there isn't enough GPU to hold the student and teacher models together and requires model loading and unloading.}
 \label{tab:timing}
 \end{table}
 
-Table~\ref{tab:timing} shows that \method{} achieves a 24$\times$ wall-clock speedup and reduces peak training memory by $\sim 4\times$. The dominant cost in full-seq is autoregressive generation ($180$\,s/step for sequences averaging ${\sim}1000$ tokens); \method{} generates only $N{=}100$ tokens (5\,s/step). \Method{} also does not require a vLLM/SGLang inference server---100 tokens can be generated via standard HF generate. Full-seq with an 8B teacher OOMs on a 48\,GB A6000; \method{} runs comfortably, unlocking larger teachers on smaller GPUs.
+Table~\ref{tab:timing} shows that \method{} achieves a 24$\times$ wall-clock speedup and reduces peak training memory by $\sim 4\times$. The dominant cost in full-seq is autoregressive generation ($180$\,s/step for sequences averaging ${\sim}1000$ tokens); \method{} generates only $N{=}100$ tokens (5\,s/step). Note that with \method, all the student and teacher models can be put in one A6000 GPU comfortably. In our own practice, it saves a further big time overhead of model loading and unloading that we do not report here. 
 
 % ============================================================================
 % 6. MECHANISMS (Part 3 of the deck)
