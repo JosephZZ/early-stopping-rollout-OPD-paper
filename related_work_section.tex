@@ -7,34 +7,53 @@
 \section{Related Work}
 \label{sec:related_work}
 
+% \paragraph{Knowledge Distillation for Language Models.}
+% Knowledge distillation~\citep{hinton2015distilling} transfers knowledge from a teacher to a smaller student via soft targets.
+% \citet{kim2016sequence} extended this to sequence models with word-level and sequence-level objectives.
+% For autoregressive LLMs, the choice of divergence and data distribution is decisive.
+% \citet{gu2024minillm} argued for reverse KL in generative LLM distillation, on the grounds that reverse KL avoids the student placing probability on low-support teacher regions; \citet{agarwal2024onpolicy} introduced Generalized Knowledge Distillation (GKD), which generates rollouts from the student (``on-policy'') and supervises with teacher logits---substantially outperforming supervised off-policy distillation on reasoning tasks.
+% \citet{ko2024distillm} proposed skew KL and an adaptive off-policy schedule; \citet{wen2023fdivergence} generalized sequence-level KD to arbitrary $f$-divergences; \citet{wu2025rethinking} revisited the mode- vs.\ mean-seeking interpretation of reverse and forward KL in the LLM setting and showed that both converge under sufficient training but differ in which distribution regions they first concentrate on.
+% \citet{xu2025speculative} introduced Speculative Knowledge Distillation, which interleaves teacher-student sampling in the style of speculative decoding and filters tokens the teacher would not have produced.
+% Our work builds directly on the on-policy reverse-KL paradigm of \citet{gu2024minillm} and \citet{agarwal2024onpolicy}, but asks a different question: holding the divergence and data distribution fixed, \emph{which token positions along the student's rollout carry useful signal?} Our answer---only the early window (Early Stopping Rollout)---is orthogonal to the divergence-design axis these works explore.
+
+% \paragraph{Token-Level Importance in Distillation and Reasoning.}
+% A growing body of work demonstrates that not all tokens contribute equally to learning.
+% \citet{wang2025beyond8020} showed that only $\sim$20\% of chain-of-thought tokens have high entropy, and these ``forking tokens'' steer reasoning paths---applying RL gradients to only these tokens matches full-gradient performance.
+% In the RL fine-tuning setting, \citet{vassoyan2025ignorekl} demonstrated that uniform KL penalties across all token positions prevent exploration on ``critical tokens'' where the pretrained model is most uncertain, and proposed entropy-weighted KL relaxation that allows the model to deviate from its prior precisely where it needs to learn.
+% \citet{li2025preplan} discovered a ``preplan-and-anchor'' mechanism in LLM attention patterns, where models first perform long-range contextual reference before producing semantic anchor tokens, enabling targeted credit assignment.
+% \citet{singh2026functional} proposed greedy pruning of reasoning chains and showed that LLMs internally encode token-level functional importance for answer generation.
+
+% In the distillation setting specifically, several concurrent works have explored token selection.
+% \citet{huang2025selectkd} proposed SelecTKD, a propose-and-verify framework where the teacher verifies student-proposed tokens, applying full loss to accepted tokens and masking rejected ones.
+% \citet{xie2026adakd} introduced AdaKD, which adaptively adjusts token-level temperature based on learning stability.
+% \citet{tavor2026rethinking} systematically disentangled selective KD along position, class, and sample axes, proposing student-entropy-guided position selection (SE-KD) that reduces wall time by 70\% without sacrificing accuracy.
+% \citet{kim2026tsdkd} combined entropy-based token selection with preference ranking in a dual distillation framework.
+
+% These works collectively establish that not all tokens deserve equal gradient weight, and most of them pick the ``important'' tokens via a scalar per-token criterion---entropy, KL, difficulty, or a verification score.
+% Our Section~\ref{sec:token_selection} ablation directly contradicts the premise that such scalars are sufficient: selecting the same number of tokens by top-KL, top-entropy (student, teacher, AND, OR, triple-product), soft-weighted joint entropy, or top-$K$-renorm RKL (a vocabulary-level renormalization of RKL proposed for stabilizing distillation; exact citation to be added in camera-ready)%
+% \footnote{TODO: resolve and cite the top-$K$-renorm RKL method (Fu et al., 2025).}
+% all underperform \method{} and most underperform plain full-sequence training.
+% Position is the load-bearing axis; scalar token saliencies are not.
+% This also resolves a tension with \citet{wang2025beyond8020}, who find that RL gradients concentrated on high-entropy ``forking tokens'' suffice: in on-policy \emph{distillation}, the high-entropy tokens are disproportionately in the uncontaminated early window, so their result is consistent with ours once this early-window concentration of entropy is accounted for.
+
+
 \paragraph{Knowledge Distillation for Language Models.}
-Knowledge distillation~\citep{hinton2015distilling} transfers knowledge from a teacher to a smaller student via soft targets.
-\citet{kim2016sequence} extended this to sequence models with word-level and sequence-level objectives.
-For autoregressive LLMs, the choice of divergence and data distribution is decisive.
-\citet{gu2024minillm} argued for reverse KL in generative LLM distillation, on the grounds that reverse KL avoids the student placing probability on low-support teacher regions; \citet{agarwal2024onpolicy} introduced Generalized Knowledge Distillation (GKD), which generates rollouts from the student (``on-policy'') and supervises with teacher logits---substantially outperforming supervised off-policy distillation on reasoning tasks.
-\citet{ko2024distillm} proposed skew KL and an adaptive off-policy schedule; \citet{wen2023fdivergence} generalized sequence-level KD to arbitrary $f$-divergences; \citet{wu2025rethinking} revisited the mode- vs.\ mean-seeking interpretation of reverse and forward KL in the LLM setting and showed that both converge under sufficient training but differ in which distribution regions they first concentrate on.
-\citet{xu2025speculative} introduced Speculative Knowledge Distillation, which interleaves teacher-student sampling in the style of speculative decoding and filters tokens the teacher would not have produced.
-Our work builds directly on the on-policy reverse-KL paradigm of \citet{gu2024minillm} and \citet{agarwal2024onpolicy}, but asks a different question: holding the divergence and data distribution fixed, \emph{which token positions along the student's rollout carry useful signal?} Our answer---only the early window (Early Stopping Rollout)---is orthogonal to the divergence-design axis these works explore.
+Knowledge distillation~\citep{hinton2015distilling} transfers knowledge from a teacher to a smaller student via soft targets, and \citet{kim2016sequence} extended this idea to sequence models with word-level and sequence-level objectives.
+For autoregressive LLMs, both the divergence and the data distribution are crucial.
+\citet{gu2024minillm} advocated reverse KL for generative LLM distillation, arguing that it avoids assigning mass to low-support teacher regions, and \citet{agarwal2024onpolicy} introduced Generalized Knowledge Distillation (GKD), which uses student-generated rollouts to obtain substantial gains over off-policy distillation on reasoning tasks.
+Related work has explored other divergence and sampling choices, including skew KL and adaptive off-policy schedules~\citep{ko2024distillm}, general $f$-divergences~\citep{wen2023fdivergence}, the mode-seeking versus mean-seeking behavior of forward and reverse KL~\citep{wu2025rethinking}, and speculative knowledge distillation with interleaved teacher-student sampling~\citep{xu2025speculative}.
+Our work builds directly on the on-policy reverse-KL setting of \citet{gu2024minillm} and \citet{agarwal2024onpolicy}, but asks a different question: holding the divergence and rollout distribution fixed, which token positions carry useful signal?
 
 \paragraph{Token-Level Importance in Distillation and Reasoning.}
-A growing body of work demonstrates that not all tokens contribute equally to learning.
-\citet{wang2025beyond8020} showed that only $\sim$20\% of chain-of-thought tokens have high entropy, and these ``forking tokens'' steer reasoning paths---applying RL gradients to only these tokens matches full-gradient performance.
-In the RL fine-tuning setting, \citet{vassoyan2025ignorekl} demonstrated that uniform KL penalties across all token positions prevent exploration on ``critical tokens'' where the pretrained model is most uncertain, and proposed entropy-weighted KL relaxation that allows the model to deviate from its prior precisely where it needs to learn.
-\citet{li2025preplan} discovered a ``preplan-and-anchor'' mechanism in LLM attention patterns, where models first perform long-range contextual reference before producing semantic anchor tokens, enabling targeted credit assignment.
-\citet{singh2026functional} proposed greedy pruning of reasoning chains and showed that LLMs internally encode token-level functional importance for answer generation.
+A growing line of work suggests that not all tokens contribute equally to learning.
+In reasoning, \citet{wang2025beyond8020} found that only a small fraction of chain-of-thought tokens are high-entropy ``forking tokens'' that steer subsequent reasoning, while \citet{vassoyan2025ignorekl} showed that uniform KL penalties can suppress exploration on critical tokens and proposed entropy-weighted KL relaxation.
+Related studies also identify token-level structure in planning and credit assignment, including preplan-and-anchor behavior~\citep{li2025preplan} and functional importance in reasoning chains~\citep{singh2026functional}.
 
-In the distillation setting specifically, several concurrent works have explored token selection.
-\citet{huang2025selectkd} proposed SelecTKD, a propose-and-verify framework where the teacher verifies student-proposed tokens, applying full loss to accepted tokens and masking rejected ones.
-\citet{xie2026adakd} introduced AdaKD, which adaptively adjusts token-level temperature based on learning stability.
-\citet{tavor2026rethinking} systematically disentangled selective KD along position, class, and sample axes, proposing student-entropy-guided position selection (SE-KD) that reduces wall time by 70\% without sacrificing accuracy.
-\citet{kim2026tsdkd} combined entropy-based token selection with preference ranking in a dual distillation framework.
-
-These works collectively establish that not all tokens deserve equal gradient weight, and most of them pick the ``important'' tokens via a scalar per-token criterion---entropy, KL, difficulty, or a verification score.
-Our Section~\ref{sec:token_selection} ablation directly contradicts the premise that such scalars are sufficient: selecting the same number of tokens by top-KL, top-entropy (student, teacher, AND, OR, triple-product), soft-weighted joint entropy, or top-$K$-renorm RKL (a vocabulary-level renormalization of RKL proposed for stabilizing distillation; exact citation to be added in camera-ready)%
-\footnote{TODO: resolve and cite the top-$K$-renorm RKL method (Fu et al., 2025).}
-all underperform \method{} and most underperform plain full-sequence training.
-Position is the load-bearing axis; scalar token saliencies are not.
-This also resolves a tension with \citet{wang2025beyond8020}, who find that RL gradients concentrated on high-entropy ``forking tokens'' suffice: in on-policy \emph{distillation}, the high-entropy tokens are disproportionately in the uncontaminated early window, so their result is consistent with ours once this early-window concentration of entropy is accounted for.
+In distillation specifically, several concurrent methods have explored token selection or weighting.
+SelecTKD uses teacher verification to mask rejected tokens~\citep{huang2025selectkd}; AdaKD adapts token-level temperature based on training stability~\citep{xie2026adakd}; SE-KD disentangles position, class, and sample selection and uses student-entropy-guided position filtering~\citep{tavor2026rethinking}; and TSDKD combines entropy-based token selection with preference ranking~\citep{kim2026tsdkd}.
+Our ablation in Section~\ref{sec:token_selection} shows that these scalar token-saliency criteria are insufficient: selecting the same number of tokens by top-KL, top-entropy, combined entropy heuristics, or top-$K$-renorm RKL all underperform \method{}, and most underperform even plain full-sequence training.
+This indicates that position is a load-bearing axis of supervision rather than a proxy for token saliency.
+It also reconciles our findings with \citet{wang2025beyond8020}: in on-policy distillation, the high-entropy ``forking tokens'' are concentrated in the early uncontaminated window, so their conclusion is consistent with ours once position is taken into account.
 
 % \paragraph{Training Stability and Sequence-Level Issues.}
 % Full-sequence on-policy distillation is known to suffer from instability.
