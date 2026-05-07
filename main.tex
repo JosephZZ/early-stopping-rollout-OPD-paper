@@ -49,7 +49,7 @@
 \newcommand{\tbd}[1]{\textcolor{red}{[TBD: #1]}}
 \newcommand{\beatsteacher}{\textcolor{red!85!black}{$\bigstar$}}
 
-\title{Early Stopping Rollout: Early Tokens Are Better For On-Policy Distillation}
+\title{Less is More: Early Stopping Rollout for On-Policy Distillation}
 
 % NeurIPS 2026 author block.
 % At submission time the default (anonymous) option hides the author block
@@ -114,7 +114,7 @@ Our contributions are summarized below:
     \label{fig:motivation}
 \end{figure}
   
-\section{Motivation: Why Late-Position Supervision Is Unreliable}
+\section{Why Late-Position Supervision Is Unreliable}
 \label{sec:motivation}
 
 In on-policy distillation, the teacher model scores the student's rollout at each position $t$ via $\pi_t(\cdot \mid x, y_{<t}^{\text{student}})$ and averages these scores uniformly across the rollout. The conditioning context $y_{<t}^{\text{student}}$, however, is whatever this particular student happened to write at this particular moment of training. As $t$ grows it drifts away from any distribution the teacher itself was trained on---off-policy to the teacher and, for long enough or atypical enough rollouts, plausibly out-of-distribution.  
@@ -154,16 +154,16 @@ If the student emits EOS before position $N$, the rollout terminates naturally. 
 \label{sec:experiments}
 \subsection{Setup}
 
-\paragraph{Models.} We evaluate across multiple student-teacher pairs. Our primary student is Qwen2.5-Math-1.5B~\citep{qwen2024qwen25math}, paired with teachers of increasing scale: Qwen3-1.7B, Qwen3-4B, and Qwen3-8B~\citep{qwen2025qwen3}. We also tested Qwen2.5-Math-7B with Qwen3-14B to test student model size generality. To test cross-family generality, we also evaluate with gemma-2-2b-it (student) and gemma-3-4b-it (teacher).
+\textbf{Models.} We evaluate across multiple student-teacher pairs. Our primary student is Qwen2.5-Math-1.5B~\citep{qwen2024qwen25math}, paired with teachers of increasing scale: Qwen3-1.7B, Qwen3-4B, and Qwen3-8B~\citep{qwen2025qwen3}. We also tested Qwen2.5-Math-7B with Qwen3-14B to test student model size generality. To test cross-family generality, we also evaluate with gemma-2-2b-it (student) and gemma-3-4b-it (teacher).
 
-\paragraph{Training.} All experiments use LoRA~\citep{hu2022lora} ($r{=}32$, $\alpha{=}64$, all linear layers, lr = $5{\times}10^{-5}$) with reverse KL divergence loss. Temperature 0.7 for on-policy generation. Each training step processes a batch of 16 problems with 1 rollout per problem ($n_{\text{samples}}{=}1$, batch size 16). We train for 200 steps on all tasks, and saving checkpoints every 50 steps. Training data are drawn from from NuminaMath, CodeUltraFeedback, and glaive-function-calling-v2. Our method uses $N{=}100$ unless otherwise specified.
+\textbf{Training.} All experiments use LoRA~\citep{hu2022lora} ($r{=}32$, $\alpha{=}64$, all linear layers, lr = $5{\times}10^{-5}$) with reverse KL divergence loss. Temperature 0.7 for on-policy generation. Each training step processes a batch of 16 problems with 1 rollout per problem ($n_{\text{samples}}{=}1$, batch size 16). We train for 200 steps on all tasks, and saving checkpoints every 50 steps. Training data are drawn from from NuminaMath, CodeUltraFeedback, and glaive-function-calling-v2. Our method uses $N{=}100$ unless otherwise specified.
 
-\paragraph{Evaluation.} MATH-500~\citep{hendrycks2021measuring, lightman2023verify} with $n{=}4$ samples at temperature 0.7 (reporting avg@4), HumanEval/HumanEval+ ~\citep{chen2021evaluating, austin2021program, liu2024evalplus} at temperature 0.0 (reporting pass@1), BFCL~\citep{yan2024bfcl} with 600 problems reporting full accuracy: correct function name and arguments.
+\textbf{Evaluation.} MATH-500~\citep{hendrycks2021measuring, lightman2023verify} with $n{=}4$ samples at temperature 0.7 (reporting avg@4), HumanEval/HumanEval+ ~\citep{chen2021evaluating, austin2021program, liu2024evalplus} at temperature 0.0 (reporting pass@1), BFCL~\citep{yan2024bfcl} with 600 problems reporting full accuracy: correct function name and arguments.
 
 \subsection{Results Across Families, Tasks, Regimes, and Scales}
 \label{sec:main_results_sub}
 
-Table~\ref{tab:main_results} presents the unified main results across tasks, model families, scales, and training regimes. We report the best performance achieved across all training steps for each configuration. But notice that full rollout distillation frequently collapse to much lower performance as it trains. We denote the sessions that collapses with a down arrows.
+Table~\ref{tab:main_results} presents the main results across tasks and model families. Table ~\ref{} scales, and training regimes. We report the best performance achieved across all training steps for each configuration. But notice that full rollout distillation frequently collapse to much lower performance as it trains. We denote the sessions that collapses with a down arrows.
 
 \begin{table}[t]
 \centering
@@ -198,8 +198,6 @@ Table~\ref{tab:main_results} presents the unified main results across tasks, mod
 \begin{table}[t]
 \begin{minipage}[t]{0.48\textwidth}
 \centering
-\caption{\textbf{FullFT on MATH-500.} Best across training steps. \textbf{Bold}: \method{} beats \textbf{Full Rollout}.}
-\label{tab:fullft_math}
 \scriptsize
 \setlength{\tabcolsep}{3pt}
 \begin{tabular}{@{}l l c c@{}}
@@ -215,12 +213,14 @@ Table~\ref{tab:main_results} presents the unified main results across tasks, mod
  & \textbf{\Method{}} & \textbf{26.65} & \textbf{40.40} \\
 \bottomrule
 \end{tabular}
+\caption{\textbf{FullFT on MATH-500.} Best across training steps. \textbf{Bold}: \method{} beats \textbf{Full Rollout}.}
+\label{tab:fullft_math}
+
 \end{minipage}%
 \hfill
 \begin{minipage}[t]{0.50\textwidth}
 \centering
-\caption{\textbf{Scaling teacher and student (LoRA) on MATH-500.} $^{\downarrow}$: \textbf{Full Rollout} peak before degradation. \textbf{Bold}: \method{} beats \textbf{Full Rollout}.}
-\label{tab:scaling_math}
+
 \scriptsize
 \setlength{\tabcolsep}{3pt}
 \begin{tabular}{@{}l l c c@{}}
@@ -240,6 +240,8 @@ Table~\ref{tab:main_results} presents the unified main results across tasks, mod
  & \textbf{\Method{}} & \textbf{68.95} & \textbf{81.20} \\
 \bottomrule
 \end{tabular}
+\caption{\textbf{Scaling teacher and student (LoRA) on MATH-500.} $^{\downarrow}$: \textbf{Full Rollout} peak before degradation. \textbf{Bold}: \method{} beats \textbf{Full Rollout}.}
+\label{tab:scaling_math}
 \end{minipage}
 \end{table}
 
