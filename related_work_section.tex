@@ -1,6 +1,6 @@
 % =============================================================================
 % related_work_section.tex --- Positional Distillation Paper
-% Self-contained related work section (~0.75 page, shortened)
+% Self-contained related work section (two paragraphs)
 % Usage: \input{related_work_section.tex} in main.tex
 % =============================================================================
 
@@ -8,30 +8,23 @@
 \label{sec:related_work}
 
 \paragraph{Knowledge Distillation for Language Models.}
-Knowledge distillation~\citep{hinton2015distilling,kim2016sequence} for autoregressive LLMs hinges on the choice of divergence and data distribution.
-\citet{gu2024minillm} argued for reverse KL, and \citet{agarwal2024onpolicy} introduced on-policy GKD, which supervises student rollouts with teacher logits.
-Subsequent work has explored skew KL with adaptive off-policy schedules~\citep{ko2024distillm}, generalized $f$-divergences~\citep{wen2023fdivergence}, mode- vs.\ mean-seeking dynamics~\citep{wu2025rethinking}, and speculative-decoding-style filtering~\citep{xu2025speculative}.
-We build on the on-policy reverse-KL paradigm but ask an orthogonal question: holding divergence and data distribution fixed, \emph{which token positions along the student's rollout carry useful signal?}
+Knowledge distillation~\citep{hinton2015distilling} transfers knowledge from a teacher to a smaller student via soft targets, and \citet{kim2016sequence} extended this idea to sequence models with word-level and sequence-level objectives.
+For autoregressive LLMs, both the divergence and the data distribution are crucial.
+\citet{gu2024minillm} advocated reverse KL for generative LLM distillation, arguing that it avoids assigning mass to low-support teacher regions, and \citet{agarwal2024onpolicy} introduced Generalized Knowledge Distillation (GKD), which uses student-generated rollouts to obtain substantial gains over off-policy distillation on reasoning tasks.
+Related work has explored other divergence and sampling choices, including skew KL and adaptive off-policy schedules~\citep{ko2024distillm}, general $f$-divergences~\citep{wen2023fdivergence}, the mode-seeking versus mean-seeking behavior of forward and reverse KL~\citep{wu2025rethinking}, and speculative knowledge distillation with interleaved teacher-student sampling~\citep{xu2025speculative}.
+Our work builds directly on the on-policy reverse-KL setting of \citet{gu2024minillm} and \citet{agarwal2024onpolicy}, but asks a different question: holding the divergence and rollout distribution fixed, which token positions carry useful signal?
 
 \paragraph{Token-Level Importance in Distillation and Reasoning.}
-Not all tokens contribute equally to learning.
-\citet{wang2025beyond8020} showed that $\sim$20\% high-entropy ``forking tokens'' suffice for RL gradients; \citet{vassoyan2025ignorekl} relaxed KL on critical tokens to enable exploration; \citet{li2025preplan} identified a preplan-and-anchor mechanism in attention; and \citet{singh2026functional} pruned reasoning chains by functional importance.
-In distillation specifically, recent work selects tokens via teacher verification~\citep{huang2025selectkd}, adaptive temperature~\citep{xie2026adakd}, student entropy along position/class/sample axes~\citep{tavor2026rethinking}, and entropy plus preference ranking~\citep{kim2026tsdkd}.
-Our Section~\ref{sec:token_selection} ablation contradicts the shared premise: selecting tokens by top-KL, various top-entropy variants, or soft-weighted joint entropy all underperform \method{} and most underperform plain full-sequence training.
-Position is the load-bearing axis; scalar saliencies are not.
-This also reconciles \citet{wang2025beyond8020} with our findings: in on-policy distillation, high-entropy tokens are disproportionately concentrated in the uncontaminated early window.
+A growing line of work suggests that not all tokens contribute equally to learning.
+In reasoning, \citet{wang2025beyond8020} found that only a small fraction of chain-of-thought tokens are high-entropy ``forking tokens'' that steer subsequent reasoning, while \citet{vassoyan2025ignorekl} showed that uniform KL penalties can suppress exploration on critical tokens and proposed entropy-weighted KL relaxation.
+Related studies also identify token-level structure in planning and credit assignment, including preplan-and-anchor behavior~\citep{li2025preplan} and functional importance in reasoning chains~\citep{singh2026functional}.
 
-\paragraph{Training Stability and Sequence Length.}
-Full-sequence on-policy distillation is unstable: likelihood training degenerates into bland, repetitive text~\citep{holtzman2020curious}, and self-training drives model collapse~\citep{shumailov2024collapse}.
-\citet{jang2026veto} proposed a geometric logit-space bridge to suppress harmful gradients on low-confidence tokens.
-On the length axis, \citet{chen2025distillingessence} showed that supervised training on the first 50\% of tokens retains $\sim$91\% of full-sequence performance, and \citet{yan2026dasd} addressed exposure bias in long-CoT distillation via temperature scheduling.
-Our approach is complementary: restricting the loss scope to early positions, where teacher--student agreement is naturally highest, yields stability through a simpler mechanism and eliminates the degenerate repetition unique to on-policy training.
+In distillation specifically, several concurrent methods have explored token selection or weighting.
+SelecTKD uses teacher verification to mask rejected tokens~\citep{huang2025selectkd}; AdaKD adapts token-level temperature based on training stability~\citep{xie2026adakd}; SE-KD disentangles selection along position, class, and sample axes and uses student-entropy filtering along the position axis~\citep{tavor2026rethinking}; and TSDKD combines entropy-based token selection with preference ranking~\citep{kim2026tsdkd}.
+Our ablation in Section~\ref{sec:token_selection} shows that these scalar token-saliency criteria are insufficient: selecting the same number of tokens by top-KL, top-entropy, or combined entropy heuristics all underperform \method{}, and most underperform even plain full-sequence training.
+This indicates that position is a load-bearing axis of supervision rather than a proxy for token saliency.
+It also reconciles our findings with \citet{wang2025beyond8020}: in on-policy distillation, the high-entropy ``forking tokens'' are concentrated in the early uncontaminated window, so their conclusion is consistent with ours once position is taken into account.
 
-\paragraph{Curriculum Learning.}
-Curriculum learning~\citep{bengio2009curriculum} and scheduled sampling~\citep{bengio2015scheduled} gradually increase task difficulty.
-For LLM pretraining, sequence-length warmup stabilizes training~\citep{li2022stability} and variable-length curricula accelerate convergence~\citep{pouransari2024dataset}.
-Our progressive position schedule applies the curriculum principle to the distillation loss scope rather than to the input length---a form of curriculum specific to knowledge distillation.
-
-\paragraph{Reasoning Distillation.}
-Chain-of-thought prompting~\citep{wei2022chainofthought} made intermediate reasoning the unit of transfer, and DeepSeek-R1~\citep{deepseekr1} showed that SFT-distilling a strong reasoner into a smaller model is often competitive with direct RL.
-On reasoning tasks (MATH-500, HumanEval/MBPP, BFCL) and a 1.5B-math-student $\to$ 8B-teacher sweep, \method{} surpasses the teacher on several cells, indicating that gains beyond the teacher are possible when the mode-seeking reverse-KL loss is restricted to the planning region---explaining why the on-policy, early-stopped-rollout regime is more efficient and stable than full-sequence on-policy distillation, which frequently degrades on coding and math.
+\paragraph{Concurrent work.}
+\citet{zhang2026prefix} independently report that concentrating OPD supervision on response prefixes is an effective efficiency lever; in their setting --- distilling a reasoning teacher into a base model that has not yet acquired reasoning behavior --- prefix OPD does not surpass full-trajectory OPD, suggesting that bootstrapping reasoning from scratch still benefits from full-trajectory supervision.
+Our setting is complementary: starting from a math-SFT student that already reasons, on-policy distillation pushes the student \emph{beyond} the teacher, an effect we identify and empirically attribute to the mode-seeking nature of reverse-KL; we additionally provide systematic experiments and analyses on why late-position tokens are detrimental and on the mechanism through which prefix tokens drive learning --- none of which is addressed by concurrent work.
