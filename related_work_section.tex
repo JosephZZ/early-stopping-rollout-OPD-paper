@@ -17,9 +17,7 @@ We build on the on-policy reverse-KL paradigm but ask an orthogonal question: ho
 Not all tokens contribute equally to learning.
 \citet{wang2025beyond8020} showed that $\sim$20\% high-entropy ``forking tokens'' suffice for RL gradients; \citet{vassoyan2025ignorekl} relaxed KL on critical tokens to enable exploration; \citet{li2025preplan} identified a preplan-and-anchor mechanism in attention; and \citet{singh2026functional} pruned reasoning chains by functional importance.
 In distillation specifically, recent work selects tokens via teacher verification~\citep{huang2025selectkd}, adaptive temperature~\citep{xie2026adakd}, student entropy along position/class/sample axes~\citep{tavor2026rethinking}, and entropy plus preference ranking~\citep{kim2026tsdkd}.
-Our Section~\ref{sec:token_selection} ablation contradicts the shared premise: selecting tokens by top-KL, various top-entropy variants, soft-weighted joint entropy, or top-$K$-renorm RKL%
-\footnote{TODO: resolve and cite the top-$K$-renorm RKL method (Fu et al., 2025).}
-all underperform \method{} and most underperform plain full-sequence training.
+Our Section~\ref{sec:token_selection} ablation contradicts the shared premise: selecting tokens by top-KL, various top-entropy variants, or soft-weighted joint entropy all underperform \method{} and most underperform plain full-sequence training.
 Position is the load-bearing axis; scalar saliencies are not.
 This also reconciles \citet{wang2025beyond8020} with our findings: in on-policy distillation, high-entropy tokens are disproportionately concentrated in the uncontaminated early window.
 
